@@ -1,0 +1,32 @@
+{
+  "slug": "roomcode-tactics",
+  "title": "Roomcode Tactics",
+  "territory": "games-creative",
+  "user": "Two remote friends who want a low-stakes, room-code tactical game that survives a deployment/reconnect and does not demand a persistent account or a huge concurrent community.",
+  "evidence": [
+    {
+      "url": "https://hn.algolia.com/api/v1/items/43613711",
+      "date": "2025-04-07",
+      "quote_or_summary": "A developer asks how to build a turn-based multiplayer browser game in 2025, specifically concerned that deployments will interrupt ongoing games."
+    },
+    {
+      "url": "https://itch.io/t/6233119/heartlands-free-browser-multiplayer-sandbox-where-players-make-everything",
+      "date": "2026-04-17",
+      "quote_or_summary": "A 2026 itch.io devlog presents a free browser multiplayer sandbox, confirming browser-native multiplayer remains an active indie format rather than an abandoned distribution channel."
+    }
+  ],
+  "recurrence": "The HN request exposes the reliability constraint of browser turn-based play; the independent itch.io thread confirms ongoing browser-multiplayer experimentation in 2026.",
+  "current_workaround": "Use Board Game Arena/Discord/Steam, wait for a friend to install a client, or build a bespoke multiplayer prototype whose sessions break during deployment.",
+  "incumbents_and_gap": "Board Game Arena has breadth and accounts; online tactics games usually require a client, ladder, or community population. A tiny asynchronous room can avoid matchmaking and still offer meaningful interaction.",
+  "smallest_useful_product": "A two-player, room-code asynchronous tactics game on a 7\u00d77 map. Each side gets five turns over up to 24 hours, submits a simultaneous move, and receives a short animated resolution; a match ends in 10\u201315 decisions. Maps rotate through weather and objective rules. Non-goals: real-time combat, public matchmaking, guilds, global ladder, or long-lived worlds.",
+  "success_measure": "At least 60% of created rooms receive a second player move, 40% complete, and fewer than 2% of completed games require support for an interrupted deployment/reconnect.",
+  "artifact_class": "browser-game",
+  "monetization": "free \u2014 room-code sharing needs a zero-friction first match; one-time map-pack support can be tested after completion rates are proven.",
+  "constraints": "Persist moves and deterministic state before response; use idempotent turn submission and signed opaque room tokens; throttle abuse without forcing accounts; no copyrighted board-game rules or maps.",
+  "est_build_effort": "M",
+  "scale": "small",
+  "why_distinct": "The design is intentionally a resilient, finite correspondence game\u2014not a live-service tactics clone with matchmaking.",
+  "confidence": 4,
+  "state": "RESEARCHED",
+  "research_run": "research-browser-games-0901-204312-1"
+}
