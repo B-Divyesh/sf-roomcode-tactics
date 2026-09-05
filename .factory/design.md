@@ -45,9 +45,9 @@ focus across the board; Enter or Space activates a focused legal cell.
 
 ## Asset plan and provenance
 
-`public/favicon.svg`, `public/apple-touch-icon.svg`, and
-`public/social-card.svg` are hand-made folded-map compositions; the game board
-is drawn with product CSS. `public/folded-map.webp` is an original generated
+`public/favicon.svg`, `public/apple-touch-icon.svg`, `public/apple-touch-icon.png`,
+`public/social-card.svg`, and `public/social-card.png` are hand-made folded-map
+compositions; the game board is drawn with product CSS. `public/folded-map.webp` is an original generated
 background texture, used at low opacity beneath the playable board. Its source
 is `assets/src/folded-map-source.png`; the exact prompt and factory-image
 deployment metadata are in its adjacent JSON sidecar (generated 2026-09-05).
