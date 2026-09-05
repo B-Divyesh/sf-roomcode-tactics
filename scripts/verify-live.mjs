@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 
 const origin = process.env.BASE_URL || 'https://roomcode-tactics.sociobot.in';
 const apiOrigin = process.env.API_URL || 'https://roomcode-tactics-realtime.sociobot.in';
-const evidenceDir = process.env.EVIDENCE_DIR || '/work/.evidence/roomcode-tactics-repair-1/live';
+const expectedClientBuild = process.env.EXPECTED_CLIENT_BUILD || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+const expectedServiceBuild = process.env.EXPECTED_SERVICE_BUILD || '00afddae428a00b80338364df067348476f61718';
+const evidenceDir = process.env.EVIDENCE_DIR || '/work/.evidence/roomcode-tactics-repair-2/live';
 mkdirSync(evidenceDir, { recursive: true });
 
 const browser = await chromium.launch();
@@ -37,12 +40,15 @@ await desktop.goto(origin, { waitUntil: 'networkidle' });
 assert.equal(await desktop.title(), 'Roomcode Tactics — Plan turns with a friend');
 assert.equal(await desktop.locator('h1').textContent(), 'Plan turns against a friend');
 assert.match(await desktop.locator('.lede').textContent(), /two friends/i);
-assert.equal(await desktop.locator('[data-build]').textContent(), '00afdda');
+assert.equal(await desktop.locator('[data-build]').textContent(), expectedClientBuild);
 await visible(desktop.getByRole('button', { name: 'Create a room' }));
 const desktopBoard = await desktop.locator('.game-board-panel').boundingBox();
 assert.ok(desktopBoard && desktopBoard.y < 900, 'desktop board starts before the fold');
 await assertCleanAxe(desktop, 'desktop home');
 await desktop.screenshot({ path: `${evidenceDir}/first-screen-desktop.png` });
+await desktop.getByRole('link', { name: 'Terms', exact: true }).first().click();
+await visible(desktop.getByText('The current version is shown in the page footer.'));
+assert.equal(await desktop.locator('[data-build]').textContent(), expectedClientBuild);
 await desktopContext.close();
 
 const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
@@ -93,11 +99,14 @@ const first = await openPage(firstContext);
 const second = await openPage(secondContext);
 const third = await openPage(thirdContext);
 await first.goto(origin);
+await firstContext.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
 await first.getByRole('button', { name: 'Create a room' }).click();
 await first.getByLabel('Your name').fill('Mira Live');
 await first.getByRole('button', { name: 'Create room' }).click();
 await visible(first.getByRole('heading', { name: 'Share this room link with one friend' }));
 const roomUrl = first.url();
+await first.getByRole('button', { name: 'Copy room link' }).click();
+assert.equal(await first.evaluate(() => navigator.clipboard.readText()), roomUrl, 'copy writes the exact room URL');
 await second.goto(roomUrl);
 await second.getByLabel('Your name').fill('Teo Live');
 await second.getByRole('button', { name: 'Join room' }).click();
@@ -136,9 +145,20 @@ await visible(fourth.getByRole('heading', { name: 'Share this room link with one
 const otherCode = new URL(fourth.url()).searchParams.get('room');
 const firstCode = new URL(roomUrl).searchParams.get('room');
 const firstToken = await first.evaluate((code) => JSON.parse(localStorage.getItem(`rct:room:${code}`)).token, firstCode);
+const otherToken = await fourth.evaluate((code) => JSON.parse(localStorage.getItem(`rct:room:${code}`)).token, otherCode);
 assert.match(firstToken, /^[A-Za-z0-9_-]{43}$/, 'the live room pass is opaque');
 const isolation = await fetch(`${apiOrigin}/v1/rooms/${otherCode}`, { headers: { Authorization: `Bearer ${firstToken}` } });
 assert.equal(isolation.status, 403, 'one room pass cannot read another room');
+
+await fourth.getByRole('button', { name: 'Forget this room' }).click();
+assert.equal(await fourth.evaluate((code) => localStorage.getItem(`rct:room:${code}`), otherCode), null, 'forget removes the browser entry');
+const sharedAfterForget = await fetch(`${apiOrigin}/v1/rooms/${otherCode}`, { headers: { Authorization: `Bearer ${otherToken}` } });
+assert.equal(sharedAfterForget.status, 200, 'forget does not delete the shared room early');
+
+await first.locator('.game-intro').getByRole('button', { name: 'Create another room' }).click();
+assert.equal(new URL(first.url()).pathname, '/', 'restart leaves the completed room URL');
+assert.equal(new URL(first.url()).search, '', 'restart clears the completed room code');
+await visible(first.getByRole('heading', { name: 'Create a private room' }));
 await firstContext.close();
 await secondContext.close();
 await thirdContext.close();
@@ -174,7 +194,7 @@ assert.equal(rotated.status, 429, 'changing a caller-supplied forwarding value d
 const health = await fetch(`${apiOrigin}/health`);
 assert.equal(health.status, 200);
 const healthBody = await health.json();
-assert.equal(healthBody.build, '00afddae428a00b80338364df067348476f61718');
+assert.equal(healthBody.build, expectedServiceBuild);
 const expectedHttpErrors = consoleErrors.filter((message) => /status of (409|404)/.test(message));
 const unexpectedConsoleErrors = consoleErrors.filter((message) => !/status of (409|404)/.test(message));
 assert.deepEqual(unexpectedConsoleErrors, []);
@@ -183,10 +203,12 @@ const result = {
   origin,
   apiOrigin,
   build: healthBody.build,
-  clientBuild: '00afdda',
+  clientBuild: expectedClientBuild,
   firstScreen: { desktopBoardY: desktopBoard.y, phoneBoardY: phoneBoard.y },
   sample: { completed: true, persistedOnReload: true, resetToTurnOne: true, realSentinelUnchanged: true },
-  realMatch: { independentClients: 2, winnerAndLoserShown: true, persistedOnReload: true, thirdSeatRejectedVisibly: true },
+  realMatch: { independentClients: 2, winnerAndLoserShown: true, persistedOnReload: true, thirdSeatRejectedVisibly: true, copiedExactRoomUrl: true, restartedToFreshRoomForm: true },
+  forgetRoom: { browserEntryRemoved: true, sharedRoomStatus: sharedAfterForget.status },
+  footerVersion: expectedClientBuild,
   opaquePass: true,
   isolationStatus: isolation.status,
   missingRouteStatus: missing.status(),

@@ -192,14 +192,6 @@ test('all public app links resolve and loading emits no browser errors', async (
   expect(errors).toEqual([]);
 });
 
-test('copying a room link shows a visible result', async ({ page }) => {
-  await createRoom(page, 'Mira');
-  await page.getByRole('button', { name: 'Copy room link' }).click();
-  const result = page.locator('.notice');
-  await expect(result).toContainText(/Room link copied|browser address bar/);
-  await expect(result).toBeVisible();
-});
-
 test('a second independent client can join after refresh', async ({ browser }) => {
   const firstContext = await browser.newContext();
   const secondContext = await browser.newContext();

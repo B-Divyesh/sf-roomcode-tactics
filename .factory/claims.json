@@ -42,6 +42,20 @@
     "sandbox": "Create a room, reload the same browser context, and observe the same saved room."
   },
   {
+    "id": "copy-room-link",
+    "claim": "Copy room link writes the exact private room URL to the clipboard",
+    "where": "Real room flow",
+    "test": "npm test -- --grep @claim:copy-room-link",
+    "sandbox": "Create a real test room with clipboard permission, copy its link, read the clipboard, and compare it with the full room URL."
+  },
+  {
+    "id": "forget-room",
+    "claim": "Forget this room removes its browser entry without deleting the shared room early",
+    "where": "Room flow and privacy page",
+    "test": "npm test -- --grep @claim:forget-room",
+    "sandbox": "Create a real test room, forget it, assert its local entry is gone, then use the captured pass to confirm the shared room still responds."
+  },
+  {
     "id": "expired-session-cleanup",
     "claim": "The browser removes expired room entries on the next visit",
     "where": "Privacy page",
@@ -75,6 +89,20 @@
     "where": "First-screen facts, game instructions, and README",
     "test": "npm test -- --grep @claim:five-turn-match",
     "sandbox": "Two independent browser contexts submit five rounds and observe the winner end screen."
+  },
+  {
+    "id": "real-match-restart",
+    "claim": "Create another room leaves a completed real match at a fresh room form",
+    "where": "Real match end screen",
+    "test": "npm test -- --grep @claim:real-match-restart",
+    "sandbox": "Complete five turns with two independent browser contexts, use the winner's restart action, and observe an empty room form and board preview."
+  },
+  {
+    "id": "footer-version",
+    "claim": "The page footer shows the current checked-out version",
+    "where": "Terms page and every page footer",
+    "test": "npm test -- --grep @claim:footer-version",
+    "sandbox": "Open the terms route and compare the rendered footer build with the exact short Git revision used by the running app."
   },
   {
     "id": "seven-by-seven-map",

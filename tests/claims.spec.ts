@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { createRoom, finishMatch, joinRoom } from './helpers';
+
+const expectedBuild = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
 
 test('@claim:demo-never-saves-real the complete sample neither reads nor changes a real room', async ({ page }, testInfo) => {
   const requests: string[] = [];
@@ -106,6 +109,29 @@ test('@claim:refresh-rejoin reloading reconnects to your saved room', async ({ p
   await expect(page.getByRole('heading', { name: 'Share this room link with one friend' })).toBeVisible();
 });
 
+test('@claim:copy-room-link copying a room link writes the exact room URL to the clipboard', async ({ context, page }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5173' });
+  const roomUrl = await createRoom(page);
+  await page.getByRole('button', { name: 'Copy room link' }).click();
+  await expect(page.locator('.notice')).toHaveText('Room link copied.');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(roomUrl);
+});
+
+test('@claim:forget-room forgetting a room removes only its browser entry', async ({ page, request }) => {
+  const roomUrl = await createRoom(page);
+  const code = new URL(roomUrl).searchParams.get('room')!;
+  const session = await page.evaluate((roomCode) => JSON.parse(localStorage.getItem(`rct:room:${roomCode}`)!) as { token: string }, code);
+
+  await page.getByRole('button', { name: 'Forget this room' }).click();
+
+  await expect(page).toHaveURL('http://127.0.0.1:5173/');
+  await expect(page.getByRole('heading', { name: 'Plan turns against a friend' })).toBeVisible();
+  await expect(page.getByText('This room was removed from this browser. The shared room still expires automatically.')).toBeVisible();
+  expect(await page.evaluate((roomCode) => localStorage.getItem(`rct:room:${roomCode}`), code)).toBeNull();
+  const sharedRoom = await request.get(`http://127.0.0.1:8787/v1/rooms/${code}`, { headers: { Authorization: `Bearer ${session.token}` } });
+  expect(sharedRoom.status()).toBe(200);
+});
+
 test('@claim:free-join two people create and join a room without an account or payment', async ({ browser }) => {
   const firstContext = await browser.newContext();
   const secondContext = await browser.newContext();
@@ -204,4 +230,31 @@ test('@claim:five-turn-match a match ends after five simultaneous turns', async 
   await expect(second.getByRole('heading', { name: 'You lost' })).toBeVisible();
   await firstContext.close();
   await secondContext.close();
+});
+
+test('@claim:real-match-restart a completed real match returns to a fresh room form', async ({ browser }) => {
+  const firstContext = await browser.newContext();
+  const secondContext = await browser.newContext();
+  const first = await firstContext.newPage();
+  const second = await secondContext.newPage();
+  const roomUrl = await createRoom(first, 'Mira');
+  await joinRoom(second, roomUrl, 'Teo');
+  await finishMatch(first, second);
+  await expect(first.getByRole('heading', { name: 'You won', exact: true })).toBeVisible();
+
+  await first.locator('.game-intro').getByRole('button', { name: 'Create another room' }).click();
+
+  await expect(first).toHaveURL('http://127.0.0.1:5173/');
+  await expect(first.getByRole('heading', { name: 'Plan turns against a friend' })).toBeVisible();
+  await expect(first.getByRole('heading', { name: 'Create a private room' })).toBeVisible();
+  await expect(first.getByLabel('Your name')).toHaveValue('');
+  await expect(first.getByText('Board preview')).toBeVisible();
+  await firstContext.close();
+  await secondContext.close();
+});
+
+test('@claim:footer-version the terms page footer identifies the checked-out version', async ({ page }) => {
+  await page.goto('/terms');
+  await expect(page.getByText('The current version is shown in the page footer.')).toBeVisible();
+  await expect(page.locator('[data-build]')).toHaveText(expectedBuild);
 });
