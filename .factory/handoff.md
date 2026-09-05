@@ -1,5 +1,30 @@
 # Roomcode Tactics handoff
 
+## Independent verification 3
+
+**PASS on 2026-09-05 UTC: zero findings and zero untested claims.**
+
+Independent QA reviewed browser implementation
+`bc1d44809599fdb4e3fb423317b7e1c9af61e067`, service implementation
+`00afddae428a00b80338364df067348476f61718`, and documentation/release revision
+`1e1abb188103166edb4a0a0a30d4075e9600a750`. The later revision only changes
+factory documentation; it is the static build label shown live. A fresh build
+of it exactly matched the deployed JS and CSS, while the game runtime source
+remains the reviewed browser implementation.
+
+From a separate clean clone after `npm ci`, all 21 declared claim commands,
+`npm run test:all` (6 service tests, 63 browser tests, one intentional desktop
+skip for the phone-only frame test), and `npm run build` passed. The independent
+phone claim measured 60.00 fps at 4× CPU throttling. Fresh desktop and phone
+live runs completed the deterministic sample and a two-client real match,
+including reload, reset, copy, forget, restart, cross-room isolation, health,
+and live 429/`Retry-After` behavior. Axe, keyboard, motion, focus, reflow,
+routes, legal pages, expected 404s, and privacy request boundaries passed.
+
+See `.factory/verification-3.md` and
+`/work/.evidence/roomcode-tactics-verify-3/` for evidence. No known product
+finding remains.
+
 ## Repair 2 result
 
 Repair self-verification passed on 2026-09-05 UTC. The medium finding in
