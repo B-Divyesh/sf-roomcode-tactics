@@ -11,13 +11,14 @@ outcome-based browser test each.
 - Product room service: `https://roomcode-tactics-realtime.sociobot.in`
 - Browser implementation: `bc1d44809599fdb4e3fb423317b7e1c9af61e067`
 - Room-service implementation: `00afddae428a00b80338364df067348476f61718`
+- Verification documentation: `5ba88c8e1a4d3703ab356804c05c55c9d9e43588`
 - Job: play a private five-turn tactics match with one remote friend.
 - Audience: two friends who want no account, matchmaking, or live timing.
 - First action: create a room or open the sample beside it.
 
-The later handoff commit changes reports only. The deployed footer shows
-`bc1d448`, and the service health response reports its separate implementation
-SHA above.
+The later provenance commit changes report metadata only. The deployed footer
+shows `bc1d448`, and the service health response reports its separate
+implementation SHA above.
 
 ## Finding fixed
 

@@ -4,6 +4,7 @@
   "verification_kind": "repair self-verification",
   "browser_implementation_sha": "bc1d44809599fdb4e3fb423317b7e1c9af61e067",
   "service_implementation_sha": "00afddae428a00b80338364df067348476f61718",
+  "verification_documentation_sha": "5ba88c8e1a4d3703ab356804c05c55c9d9e43588",
   "findings_resolved": 1,
   "findings_open": 0,
   "declared_claims": 21,

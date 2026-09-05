@@ -12,6 +12,7 @@ passes from a clean checkout.
 - Live product: `https://roomcode-tactics.sociobot.in`
 - Browser implementation: `bc1d44809599fdb4e3fb423317b7e1c9af61e067`
 - Room-service implementation: `00afddae428a00b80338364df067348476f61718`
+- Verification documentation: `5ba88c8e1a4d3703ab356804c05c55c9d9e43588`
 - Verification date: 2026-09-05 UTC
 
 The static bundle was rebuilt with browser build `bc1d448`, pushed, and
