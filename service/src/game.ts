@@ -104,7 +104,10 @@ export class GameStore {
     mkdirSync(dataDir, { recursive: true });
     this.secret = this.readOrCreateSecret();
     this.db = new DatabaseSync(join(dataDir, 'roomcode-tactics.sqlite'));
-    this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+    // Azure Files uses network file locking. SQLite's default rollback journal is
+    // the compatible single-writer mode here; WAL mode can leave the mounted
+    // database locked during a container restart.
+    this.db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS rooms (
         id TEXT PRIMARY KEY,
