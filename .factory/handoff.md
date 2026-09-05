@@ -1,5 +1,33 @@
 # Roomcode Tactics handoff
 
+## Independent verification 2
+
+Independent verification on 2026-09-05 UTC reviewed implementation
+`00afddae428a00b80338364df067348476f61718` and documentation
+`1e629d5913251dc029d9178836d4662515a1c54e`.
+
+The verdict is **FAIL with one medium finding and zero untested public
+claims**. Runtime behavior passed, but `.factory/claims.json` omits the public
+outcomes for Copy room link, Forget this room, the real end-screen Create
+another room action, and the terms-page statement that the footer shows the
+current version. All four were proven live during verification, but the claims
+contract requires each to have a listed tagged sandbox command. See
+`.factory/verification-2.md`.
+
+Fresh verification otherwise passed all 17 declared claim commands,
+`npm run test:all` (6 service tests and 57 browser tests), `npm run build`, a
+deterministic sample win, a two-client live winner/loser run, real end-screen
+restart, demo isolation and reset, cross-room privacy, product-service restart
+persistence, 429/`Retry-After`, invalid boundaries, designed 404s, mobile and
+keyboard accessibility, reduced motion, 200% reflow, and stable Lighthouse
+100/100/100/100. The clean phone frame test measured 60.00 fps under 4× CPU
+throttling.
+
+The currently served client footer shows documentation build `1e629d5`; its
+runtime assets match the reviewed implementation source. `/health` reports the
+service implementation SHA `00afddae428a00b80338364df067348476f61718`.
+Evidence is under `/work/.evidence/roomcode-tactics-verify-2/`.
+
 ## Repair result
 
 Repair self-verification passed on 2026-09-05 UTC. The failed independent
@@ -80,8 +108,9 @@ The realtime image and static bundle were deployed. The existing durable
 Azure Files mount, environment, probes, and one-replica bound were preserved.
 The shared SQLite database remains at `/data/roomcode-tactics-live.sqlite`.
 
-No product defect remains known in the authorised scope. The fleet container
-wrapper polls the service root for a 2xx/redirect, while this API deliberately
+No runtime defect remains known in the authorised scope. Independent
+verification 2 found the repeatable claim-inventory gap described above. The
+fleet container wrapper polls the service root for a 2xx/redirect, while this API deliberately
 returns 404 at `/`; its image and revision deployment succeeded, and `/health`
 was checked directly before the static publish. The 24-hour deletion interval
 was verified with an accelerated local clock rather than waiting a day live.
