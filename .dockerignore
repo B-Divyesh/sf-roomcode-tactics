@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+service/dist
+.test-data
+test-results
+playwright-report
+graphify-out
+data
+.manual-data

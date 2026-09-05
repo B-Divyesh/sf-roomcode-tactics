@@ -1,0 +1,10 @@
+node_modules/
+dist/
+service/dist/
+data/
+.manual-data/
+.test-data/
+playwright-report/
+test-results/
+graphify-out/
+.evidence/

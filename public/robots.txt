@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://roomcode-tactics.sociobot.in/sitemap.xml

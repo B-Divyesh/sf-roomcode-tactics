@@ -1,0 +1,33 @@
+{
+  "name": "roomcode-tactics",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "dev:service": "tsx service/src/index.ts",
+    "build": "npm run build:service && vite build",
+    "build:service": "tsc -p service/tsconfig.json",
+    "check": "tsc --noEmit && tsc -p service/tsconfig.json --noEmit",
+    "pretest": "node scripts/clean-test-data.mjs",
+    "test": "playwright test",
+    "test:service": "node --import tsx --test service/test/*.test.ts",
+    "test:all": "npm run check && npm run test:service && npm test",
+    "preview": "vite preview --host 127.0.0.1 --port 4173"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.4",
+    "hono": "^4.7.2"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "1.58.2",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.1"
+  }
+}

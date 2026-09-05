@@ -1,0 +1,65 @@
+[
+  {
+    "id": "demo-never-saves-real",
+    "claim": "The sample does not create or change a real room",
+    "where": "Demo banner and README",
+    "test": "npm test -- --grep @claim:demo-never-saves-real",
+    "sandbox": "Open /demo, resolve a sample turn, and assert no request reaches the real room API."
+  },
+  {
+    "id": "no-tracking",
+    "claim": "The landing page makes no third-party tracking request",
+    "where": "First-screen facts and privacy page",
+    "test": "npm test -- --grep @claim:no-tracking",
+    "sandbox": "Record every request from a fresh landing-page load and assert all hosts are the product origin."
+  },
+  {
+    "id": "restart-demo",
+    "claim": "Resetting the sample starts it again",
+    "where": "Demo banner",
+    "test": "npm test -- --grep @claim:restart-demo",
+    "sandbox": "Resolve one sample turn, reset, then observe turn 1 again."
+  },
+  {
+    "id": "settings-persist",
+    "claim": "Settings stay in this browser",
+    "where": "Settings dialog",
+    "test": "npm test -- --grep @claim:settings-persist",
+    "sandbox": "Enable still resolution effects in /demo, reload, and observe the checked setting."
+  },
+  {
+    "id": "refresh-rejoin",
+    "claim": "Reloading reconnects to your saved room",
+    "where": "Terms and room flow",
+    "test": "npm test -- --grep @claim:refresh-rejoin",
+    "sandbox": "Create a room, reload the same browser context, and observe the same saved room."
+  },
+  {
+    "id": "free-join",
+    "claim": "Two people create and join a room without an account or payment",
+    "where": "First-screen facts and README",
+    "test": "npm test -- --grep @claim:free-join",
+    "sandbox": "Two independent browser contexts create and join a room with names only."
+  },
+  {
+    "id": "two-seat-room",
+    "claim": "A room has two seats",
+    "where": "Privacy and limits section",
+    "test": "npm test -- --grep @claim:two-seat-room",
+    "sandbox": "Fill both seats from independent contexts, then assert a third join receives the room-full error."
+  },
+  {
+    "id": "room-expiry",
+    "claim": "New rooms expire after 24 hours",
+    "where": "Privacy and limits section, privacy page, and terms",
+    "test": "npm test -- --grep @claim:room-expiry",
+    "sandbox": "Create a room through the live test service and assert its expiry is 24 hours from creation."
+  },
+  {
+    "id": "five-turn-match",
+    "claim": "A match ends after five simultaneous turns",
+    "where": "First-screen facts, game instructions, and README",
+    "test": "npm test -- --grep @claim:five-turn-match",
+    "sandbox": "Two independent browser contexts submit five rounds and observe the winner end screen."
+  }
+]
