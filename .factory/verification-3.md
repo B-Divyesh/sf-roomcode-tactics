@@ -92,6 +92,8 @@ matching declared test.
 - Each route had its expected title and one heading. Live console evidence had
   no unexpected errors; the only entries were the deliberate 409 full-room and
   deliberate 404 route checks.
+- Fresh live Lighthouse scored 100 performance, 100 accessibility, 100 best
+  practices, and 100 SEO (LCP 1.53 s, CLS 0, total blocking time 24 ms).
 - Live response headers include CSP, `frame-ancestors 'none'`, strict referrer
   policy, nosniff, and restrictive permissions policy.
 

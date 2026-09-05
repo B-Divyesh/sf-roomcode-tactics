@@ -20,6 +20,8 @@ live runs completed the deterministic sample and a two-client real match,
 including reload, reset, copy, forget, restart, cross-room isolation, health,
 and live 429/`Retry-After` behavior. Axe, keyboard, motion, focus, reflow,
 routes, legal pages, expected 404s, and privacy request boundaries passed.
+Fresh live Lighthouse scored 100/100/100/100 with 1.53 s LCP, zero CLS, and
+24 ms total blocking time.
 
 See `.factory/verification-3.md` and
 `/work/.evidence/roomcode-tactics-verify-3/` for evidence. No known product
