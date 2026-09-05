@@ -50,6 +50,8 @@ From the clean local setup:
 - Every command in `.factory/claims.json` was run from a clean test setup.
 - `npm run build` passed. Initial JS is 7.73 KB gzip; CSS is 3.39 KB gzip.
 - Playwright axe integration passed with no serious or critical violations.
+- Lighthouse on public HTTPS scored 1.00 performance and 1.00 accessibility
+  (mobile default configuration).
 - `verify-url.sh` passed locally and on final public HTTPS: title, `lang`, one
   h1, main landmark, image alt coverage, labelled buttons, and no console
   errors.
