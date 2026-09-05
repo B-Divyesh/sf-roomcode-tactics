@@ -1,13 +1,14 @@
 {
-  "work_order_id": "roomcode-tactics-repair-1",
+  "work_order_id": "roomcode-tactics-repair-2",
   "verdict": "PASS",
   "verification_kind": "repair self-verification",
-  "implementation_sha": "00afddae428a00b80338364df067348476f61718",
-  "verification_tooling_sha": "d9a7cb4bee98564b05afaabb9c3effba018bb49d",
-  "findings_resolved": 11,
+  "browser_implementation_sha": "bc1d44809599fdb4e3fb423317b7e1c9af61e067",
+  "service_implementation_sha": "00afddae428a00b80338364df067348476f61718",
+  "findings_resolved": 1,
   "findings_open": 0,
-  "declared_claims": 17,
-  "claim_commands_passed": 17,
-  "live_build": "00afddae428a00b80338364df067348476f61718",
-  "evidence_directory": "/work/.evidence/roomcode-tactics-repair-1"
+  "declared_claims": 21,
+  "claim_commands_passed": 21,
+  "browser_build": "bc1d448",
+  "service_build": "00afddae428a00b80338364df067348476f61718",
+  "evidence_directory": "/work/.evidence/roomcode-tactics-repair-2"
 }

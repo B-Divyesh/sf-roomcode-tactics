@@ -1,119 +1,87 @@
 # Roomcode Tactics handoff
 
-## Independent verification 2
+## Repair 2 result
 
-Independent verification on 2026-09-05 UTC reviewed implementation
-`00afddae428a00b80338364df067348476f61718` and documentation
-`1e629d5913251dc029d9178836d4662515a1c54e`.
+Repair self-verification passed on 2026-09-05 UTC. The medium finding in
+`.factory/verification-2.md` is resolved. All four public outcomes identified
+by the verifier now have entries in `.factory/claims.json` and one tagged,
+outcome-based browser test each.
 
-The verdict is **FAIL with one medium finding and zero untested public
-claims**. Runtime behavior passed, but `.factory/claims.json` omits the public
-outcomes for Copy room link, Forget this room, the real end-screen Create
-another room action, and the terms-page statement that the footer shows the
-current version. All four were proven live during verification, but the claims
-contract requires each to have a listed tagged sandbox command. See
-`.factory/verification-2.md`.
+- Live game: `https://roomcode-tactics.sociobot.in`
+- Product room service: `https://roomcode-tactics-realtime.sociobot.in`
+- Browser implementation: `bc1d44809599fdb4e3fb423317b7e1c9af61e067`
+- Room-service implementation: `00afddae428a00b80338364df067348476f61718`
+- Job: play a private five-turn tactics match with one remote friend.
+- Audience: two friends who want no account, matchmaking, or live timing.
+- First action: create a room or open the sample beside it.
 
-Fresh verification otherwise passed all 17 declared claim commands,
-`npm run test:all` (6 service tests and 57 browser tests), `npm run build`, a
-deterministic sample win, a two-client live winner/loser run, real end-screen
-restart, demo isolation and reset, cross-room privacy, product-service restart
-persistence, 429/`Retry-After`, invalid boundaries, designed 404s, mobile and
-keyboard accessibility, reduced motion, 200% reflow, and stable Lighthouse
-100/100/100/100. The clean phone frame test measured 60.00 fps under 4× CPU
-throttling.
+The later handoff commit changes reports only. The deployed footer shows
+`bc1d448`, and the service health response reports its separate implementation
+SHA above.
 
-The currently served client footer shows documentation build `1e629d5`; its
-runtime assets match the reviewed implementation source. `/health` reports the
-service implementation SHA `00afddae428a00b80338364df067348476f61718`.
-Evidence is under `/work/.evidence/roomcode-tactics-verify-2/`.
+## Finding fixed
 
-## Repair result
-
-Repair self-verification passed on 2026-09-05 UTC. The failed independent
-report remains at `.factory/verification-1.md` as history; all 11 findings now
-have outcome-based regression coverage and live evidence.
-
-- Public game: `https://roomcode-tactics.sociobot.in`
-- Product-owned room service: `https://roomcode-tactics-realtime.sociobot.in`
-- Job: let two remote friends finish a five-turn tactics match without an
-  account or live timing.
-- Audience: two friends who want a private room link instead of matchmaking.
-- First action: create a room or open the one-click sample beside it.
-
-The deployed browser and service implementation is
-`00afddae428a00b80338364df067348476f61718`. The browser footer shows
-`00afdda`, and `/health` reports the full service SHA. Verification tooling and
-README updates are based at `d9a7cb4bee98564b05afaabb9c3effba018bb49d`;
-the final handoff commit is report-only and does not require another image.
-
-## Finding disposition
-
-| Finding | Disposition and proof |
+| Missing claim | Repeatable outcome now proved |
 | --- | --- |
-| F-01 retention | Resolved. A scheduled cleanup deletes expired room rows; foreign-key cascades delete moves and pass hashes. The browser removes expired room entries on its next visit. The expiry claim inspects all three tables after an accelerated automatic cleanup. |
-| F-02 request-limit bypass | Resolved. The service keys allowances from the rightmost ingress-appended address, not a caller-controlled leading value. Local rotation coverage passed. Live requests reached 429 with `Retry-After: 5`, and a changed supplied value remained 429. |
-| F-03 hidden errors | Resolved. Room, network, move, and clipboard results use large visible status or alert panels. Errors receive focus and keep the entered name. A live third client saw the room-full recovery text. |
-| F-04 404 routing | Resolved. Only the three app routes rewrite to the SPA. Static Web Apps rewrites missing responses to the full site-style 404 while retaining status 404. Both an unknown path and `/404.html` return 404 live. |
-| F-05 non-opaque passes | Resolved. New passes are 32 random bytes encoded as one opaque value. Only a keyed hash is stored. Existing signed passes remain readable until their original room expires. |
-| F-06 200% reflow | Resolved. The header wraps without document overflow. Automated 390 px checks cover home, demo, privacy, and terms at 200% root text size. |
-| F-07 touch targets | Resolved. Header controls, demo actions, and enabled board cells measure at least 44 by 44 CSS pixels. |
-| F-08 route focus | Resolved. Client navigation and Back focus the new route `h1`; titles, descriptions, and canonical links also update. |
-| F-09 claim inventory | Resolved. The unsupported 4–8 minute statement was removed. Seventeen public claims now have one tagged outcome test and an exact command. All commands passed from a clean checkout. |
-| F-10 frame-rate evidence | Resolved. The phone claim uses a 390×844, 3× DPR profile with 4× CPU throttling. The clean full run measured 58.05 fps against the 55 fps floor and 60 fps target. |
-| F-11 build label | Resolved. The deployed client shows `00afdda`; the service reports the matching full SHA. |
+| Copy room link | Grants clipboard permission, creates a room, copies, reads the clipboard, and compares the exact full room URL. |
+| Forget this room | Removes the matching browser entry, returns to the fresh game, and proves the authenticated shared room still returns 200. |
+| Real-match restart | Finishes a real five-turn match in two independent contexts, uses the winner action, and observes an empty room form and board preview. |
+| Footer version | Opens the terms route and compares the rendered footer value with the exact short Git revision used by the app. |
 
-## Clean verification
+The ordinary copy-result check was replaced by the stronger claim test. The
+live verifier now checks these outcomes too. Game rules, storage behavior, and
+the service API were not changed.
 
-From a separate clean checkout of the implementation after `npm ci`:
+## Verification
 
-- All 17 exact commands in `.factory/claims.json` passed. The expiry command
-  was rerun after widening its accelerated test clock to remove a setup race.
-- `npm run test:all` passed: TypeScript checks, 6 service tests, and 57 browser
-  checks passed; the desktop copy of the phone-only frame test was skipped.
+From a separate clean checkout of the browser implementation after `npm ci`:
+
+- All 21 exact commands in `.factory/claims.json` passed. Every claim id has
+  exactly one source tag.
+- `npm run test:all` passed: 6 service tests and 63 browser checks passed. The
+  desktop copy of the phone-only frame test was intentionally skipped.
 - `npm run build` produced `dist/`. Initial JavaScript is 25.61 kB raw and
   8.48 kB gzip. CSS is 12.00 kB raw and 3.56 kB gzip.
-- Playwright axe found no serious or critical issue on home, demo, privacy,
-  terms, or the high-contrast setting.
-- Keyboard, dialog focus return, route focus, reduced motion, 200% text,
-  44 px touch targets, invalid input, offline feedback, internal links, and
-  unexpected console errors have browser coverage.
+- The clean phone run measured 60.00 fps under 4× CPU throttling against the
+  declared 55 fps floor.
+- Playwright axe found no serious or critical issue across the game, legal
+  routes, and high-contrast setting. Keyboard, dialog focus, route focus,
+  reduced motion, 200% reflow, 44 px targets, errors, offline feedback, and
+  the designed 404 all passed.
 
-## Live verification
+On the deployed HTTPS product:
 
-- Fresh 1440×900 and 390×844 contexts showed the job, audience, first actions,
-  and board before scrolling. The board began at y=152 and y=632.75.
-- The sample completed in five moves, showed the winner, survived reload,
-  reset to turn one, and kept its banner. Starting for real removed demo keys
-  without changing a seeded real-room entry or contacting the room service.
-- Two independent clients completed a real five-turn match, saw winner and
-  loser screens, and reloaded into the completed state. A third client received
-  a visible two-seat error.
-- A pass from one room received 403 on another. A new live pass was opaque.
-- A controlled restart of revision
-  `sf-roomcode-tactics-realtime--0000004` preserved a newly created room;
-  `/health` returned 200 afterward with the implementation SHA.
-- The worker URL check passed in 578 ms with no console errors. Lighthouse
-  scored 100 for performance, accessibility, best practices, and SEO; LCP was
-  1.50 s, CLS 0, and total blocking time 36 ms.
-- Home, demo, privacy, terms, robots, sitemap, social art, and favicon return
-  200. Missing routes and `/404.html` return the intentional 404 design.
+- Fresh desktop and phone contexts showed the job, audience, both first
+  actions, three facts, and the board before scrolling.
+- The sample reached its win screen, survived reload, reset to turn one, kept
+  its demo label, and left a real-data sentinel unchanged.
+- Two independent clients completed a real match and reached winner and loser
+  screens. Copy, forget, and real restart passed against the live service.
+- A controlled restart of only revision
+  `sf-roomcode-tactics-realtime--0000004` preserved an accepted move. Health
+  returned 200 afterward with the service SHA above.
+- Cross-room access returned 403. Repeated requests returned 429 with
+  `Retry-After: 5`, and changing a supplied forwarding value remained 429.
+- The worker URL check loaded in 595 ms with no console errors. Lighthouse
+  scored 100/100/100/100; LCP was 1.59 s, CLS 0, and total blocking time 36 ms.
+- App routes and public assets returned 200. Unknown paths and `/404.html`
+  returned the intentional designed 404. Live JS and CSS hashes match the
+  deployed local build.
 
-Evidence is under `/work/.evidence/roomcode-tactics-repair-1/`. The catalog
+Evidence is under `/work/.evidence/roomcode-tactics-repair-2/`. The catalog
 description was copied to `/work/.evidence/catalog-description.txt`.
 
-## Deployment and remaining notes
+## Earlier findings and remaining notes
 
-The realtime image and static bundle were deployed. The existing durable
-Azure Files mount, environment, probes, and one-replica bound were preserved.
-The shared SQLite database remains at `/data/roomcode-tactics-live.sqlite`.
+All 11 findings from `.factory/verification-1.md` remain resolved: expiry
+deletion, request-limit identity, visible recovery errors, 404 routing, opaque
+passes, 200% reflow, touch targets, route focus, claim coverage, frame-rate
+measurement, and build provenance all passed their current regression or live
+check. See `.factory/verification-repair-2.md` for individual disposition.
 
-No runtime defect remains known in the authorised scope. Independent
-verification 2 found the repeatable claim-inventory gap described above. The
-fleet container wrapper polls the service root for a 2xx/redirect, while this API deliberately
-returns 404 at `/`; its image and revision deployment succeeded, and `/health`
-was checked directly before the static publish. The 24-hour deletion interval
-was verified with an accelerated local clock rather than waiting a day live.
-
-There is no paid offer or billing metadata: the researched brief defines the
-current product as free and only suggests testing a map pack later.
+No known product defect remains in the authorised scope. The current product
+is free, as specified by the brief; there is no registered paid offer or
+billing metadata. No AI feature is appropriate for this deterministic game.
+The room service was restarted for persistence verification but was not
+redeployed or reconfigured. Its durable `/data` SQLite mount and one-replica
+bound remain in use.
