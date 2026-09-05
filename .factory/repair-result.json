@@ -1,0 +1,13 @@
+{
+  "work_order_id": "roomcode-tactics-repair-1",
+  "verdict": "PASS",
+  "verification_kind": "repair self-verification",
+  "implementation_sha": "00afddae428a00b80338364df067348476f61718",
+  "verification_tooling_sha": "d9a7cb4bee98564b05afaabb9c3effba018bb49d",
+  "findings_resolved": 11,
+  "findings_open": 0,
+  "declared_claims": 17,
+  "claim_commands_passed": 17,
+  "live_build": "00afddae428a00b80338364df067348476f61718",
+  "evidence_directory": "/work/.evidence/roomcode-tactics-repair-1"
+}
