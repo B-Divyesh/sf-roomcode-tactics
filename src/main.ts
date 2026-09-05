@@ -11,7 +11,8 @@ type RoomState = {
 };
 
 type Settings = { quietResolution: boolean; highContrast: boolean };
-type Session = { token: string; name: string };
+type Session = { token: string; name: string; expiresAt?: number };
+type NoticeKind = 'status' | 'error';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const API_URL = import.meta.env.VITE_REALTIME_URL || (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
@@ -42,10 +43,12 @@ function demoSeed(): RoomState {
 let roomState: RoomState | null = null;
 let selected: Coordinate | null = null;
 let notice = '';
+let noticeKind: NoticeKind = 'status';
 let inFlight = false;
 let settings = readSettings();
 let lastResolutionSeen = '';
-let lastRenderedPath = '';
+let lastRenderedPath = location.pathname;
+let draftName = '';
 
 function isDemo(): boolean { return location.pathname === '/demo' || new URLSearchParams(location.search).get('demo') === '1'; }
 function roomCodeFromUrl(): string | null {
@@ -54,8 +57,35 @@ function roomCodeFromUrl(): string | null {
 }
 function sessionKey(code: string): string { return `rct:room:${code}`; }
 function safeParse<T>(value: string | null): T | null { try { return value ? JSON.parse(value) as T : null; } catch { return null; } }
-function getSession(code: string): Session | null { return safeParse<Session>(localStorage.getItem(sessionKey(code))); }
+function legacyTokenExpiry(token: string): number | null {
+  try {
+    const body = token.split('.')[0];
+    if (!body) return null;
+    const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))) as { e?: number };
+    return Number.isFinite(payload.e) ? payload.e! : null;
+  } catch { return null; }
+}
+function sessionExpiry(session: Session): number | null { return session.expiresAt || legacyTokenExpiry(session.token); }
+function getSession(code: string): Session | null {
+  const key = sessionKey(code);
+  const session = safeParse<Session>(localStorage.getItem(key));
+  const expiry = session ? sessionExpiry(session) : null;
+  if (session && expiry !== null && expiry <= Date.now()) {
+    localStorage.removeItem(key);
+    return null;
+  }
+  return session;
+}
 function saveSession(code: string, session: Session): void { localStorage.setItem(sessionKey(code), JSON.stringify(session)); }
+function purgeExpiredSessions(): void {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith('rct:room:')) continue;
+    const session = safeParse<Session>(localStorage.getItem(key));
+    const expiry = session ? sessionExpiry(session) : null;
+    if (!session || (expiry !== null && expiry <= Date.now())) localStorage.removeItem(key);
+  }
+}
 function readSettings(): Settings { return { quietResolution: false, highContrast: false, ...(safeParse<Settings>(localStorage.getItem(isDemo() ? DEMO_SETTINGS_KEY : REAL_SETTINGS_KEY)) || {}) }; }
 function persistSettings(): void {
   localStorage.setItem(isDemo() ? DEMO_SETTINGS_KEY : REAL_SETTINGS_KEY, JSON.stringify(settings));
@@ -64,11 +94,28 @@ function persistSettings(): void {
 function escapeHtml(value: string): string { return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]!); }
 function prettyMap(id: string): string { return id.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' '); }
 
+function setRouteMetadata(path: string): void {
+  const route = path === '/demo' ? '/demo' : path === '/privacy' ? '/privacy' : path === '/terms' ? '/terms' : '/';
+  const descriptions: Record<string, string> = {
+    '/': 'Plan five simultaneous turns with one friend in a private room-code tactics match.',
+    '/demo': 'Play a complete five-turn Roomcode Tactics sample with separate browser storage.',
+    '/privacy': 'Read what Roomcode Tactics stores, where requests go, and when rooms are deleted.',
+    '/terms': 'Read the terms for playing a private Roomcode Tactics match.',
+  };
+  document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', descriptions[route]);
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', `https://roomcode-tactics.sociobot.in${route}`);
+}
+
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+    });
+  } catch {
+    throw new Error('The room service could not be reached. Check your connection, then try again.');
+  }
   const body = await response.json().catch(() => ({})) as T & { error?: { message?: string } };
   if (!response.ok) throw new Error(body.error?.message || 'The room service did not respond. Check your connection and try again.');
   return body;
@@ -129,6 +176,11 @@ function scoreMarkup(state: RoomState): string {
   </ol>`;
 }
 
+function noticeMarkup(): string {
+  if (!notice) return '';
+  return `<p class="notice notice-${noticeKind}" role="${noticeKind === 'error' ? 'alert' : 'status'}" ${noticeKind === 'error' ? 'tabindex="-1"' : ''}>${escapeHtml(notice)}</p>`;
+}
+
 function homeContent(): string {
   const code = roomCodeFromUrl();
   const state = roomState || previewState();
@@ -139,12 +191,13 @@ function homeContent(): string {
     <section class="game-layout" aria-labelledby="page-title">
       <div class="game-intro">
         <p class="eyebrow">Two-player tactics</p>
-        <h1 id="page-title">${headline}</h1>
+        <h1 id="page-title" tabindex="-1">${headline}</h1>
         <p class="lede">For two friends who want a short tactical match without accounts or live timing.</p>
         ${hasRoom ? roomActions(state) : `<div class="first-actions"><button class="button button-primary" type="button" data-action="show-create">Create a room</button><a class="button button-secondary" href="/demo">Try it with sample data</a></div>
         <p class="action-note">Create a room, then share its link before your first turn.</p>`}
         <ul class="facts"><li>Free to play</li><li>No tracking</li><li>Two-seat rooms</li></ul>
-        <p class="network-note" id="network-status" aria-live="polite">${navigator.onLine ? 'Room service ready when you create or join.' : 'You are offline. Reconnect before creating or joining a room.'}</p>
+        <p class="network-note" id="network-status" aria-live="polite">${navigator.onLine ? 'Create or join when you are ready.' : 'You are offline. Reconnect before creating or joining a room.'}</p>
+        ${noticeMarkup()}
       </div>
       <section class="game-board-panel" aria-labelledby="board-title"><img class="field-texture" src="/folded-map.webp" srcset="/folded-map-512.webp 512w, /folded-map.webp 1024w" sizes="(max-width: 760px) 92vw, 620px" width="1024" height="1024" alt="" decoding="async" />
         <div class="board-meta"><div><p class="eyebrow">${hasRoom ? escapeHtml(state.roomCode) : 'Board preview'}</p><h2 id="board-title">${hasRoom ? `${prettyMap(state.map.id)} · ${state.map.weather}` : 'Seven by seven folded map'}</h2></div><p>${hasRoom ? state.status === 'completed' ? 'Match complete' : `Turn ${state.round} of ${state.maxRounds}` : 'Markers decide the match'}</p></div>
@@ -170,19 +223,19 @@ function gameHeadline(state: RoomState): string {
 
 function createPanel(): string {
   return `<section class="room-panel" aria-labelledby="room-title"><div><p class="eyebrow">Start a real match</p><h2 id="room-title">Create a private room</h2><p>Use your first name or a short nickname. Your friend joins with the link.</p></div>
-    <form id="create-form" class="room-form"><label for="create-name">Your name</label><input id="create-name" name="name" minlength="2" maxlength="20" autocomplete="nickname" required /><button class="button button-primary" type="submit">Create room</button></form>
+    <form id="create-form" class="room-form"><label for="create-name">Your name</label><input id="create-name" name="name" minlength="2" maxlength="20" autocomplete="nickname" value="${escapeHtml(draftName)}" required /><button class="button button-primary" type="submit">Create room</button></form>
     <p class="form-help">A room stays available for up to 24 hours.</p></section>`;
 }
 
 function joinPanel(code: string): string {
   return `<section class="room-panel" aria-labelledby="join-title"><div><p class="eyebrow">Room ${escapeHtml(code)}</p><h2 id="join-title">Join your friend’s match</h2><p>Choose a name, then both scouts can plan the first turn.</p></div>
-    <form id="join-form" class="room-form"><label for="join-name">Your name</label><input id="join-name" name="name" minlength="2" maxlength="20" autocomplete="nickname" required /><button class="button button-primary" type="submit">Join room</button></form></section>`;
+    <form id="join-form" class="room-form"><label for="join-name">Your name</label><input id="join-name" name="name" minlength="2" maxlength="20" autocomplete="nickname" value="${escapeHtml(draftName)}" required /><button class="button button-primary" type="submit">Join room</button></form></section>`;
 }
 
 function roomActions(state: RoomState): string {
-  if (state.status === 'completed') return `<div class="first-actions"><button class="button button-primary" data-action="new-room" type="button">Create another room</button><button class="button button-secondary" data-action="copy-link" type="button">Copy room link</button></div>`;
-  if (state.status === 'lobby') return `<div class="first-actions"><button class="button button-primary" data-action="copy-link" type="button">Copy room link</button><button class="button button-secondary" data-action="refresh" type="button">Check room</button></div>`;
-  return `<div class="first-actions"><button class="button button-primary" data-action="submit-move" type="button" ${!selected || state.yourMoveLocked ? 'disabled' : ''}>${state.yourMoveLocked ? 'Move locked' : 'Submit move'}</button><button class="button button-secondary" data-action="refresh" type="button">Refresh room</button></div>`;
+  if (state.status === 'completed') return `<div class="first-actions"><button class="button button-primary" data-action="new-room" type="button">Create another room</button><button class="button button-secondary" data-action="forget-room" type="button">Forget this room</button></div>`;
+  if (state.status === 'lobby') return `<div class="first-actions"><button class="button button-primary" data-action="copy-link" type="button">Copy room link</button><button class="button button-secondary" data-action="refresh" type="button">Check room</button><button class="text-button" data-action="forget-room" type="button">Forget this room</button></div>`;
+  return `<div class="first-actions"><button class="button button-primary" data-action="submit-move" type="button" ${!selected || state.yourMoveLocked ? 'disabled' : ''}>${state.yourMoveLocked ? 'Move locked' : 'Submit move'}</button><button class="button button-secondary" data-action="refresh" type="button">Refresh room</button><button class="text-button" data-action="forget-room" type="button">Forget this room</button></div>`;
 }
 
 function playPanel(state: RoomState): string {
@@ -209,9 +262,9 @@ function privacyPanel(): string {
 function demoContent(): string {
   const state = roomState || demoSeed();
   return `<main id="main" tabindex="-1"><section class="demo-banner" aria-label="Demo mode"><span>Demo — sample data, nothing is saved</span><span><button type="button" data-action="reset-demo">Reset demo</button><button type="button" data-action="start-real">Start for real</button></span></section>
-    <section class="game-layout demo-layout" aria-labelledby="page-title"><div class="game-intro"><p class="eyebrow">Sample match</p><h1 id="page-title">Plan five sample turns</h1><p class="lede">Try the full board as Mira against Teo. This sample stays separate from real rooms.</p>
+    <section class="game-layout demo-layout" aria-labelledby="page-title"><div class="game-intro"><p class="eyebrow">Sample match</p><h1 id="page-title" tabindex="-1">Plan five sample turns</h1><p class="lede">Try the full board as Mira against Teo. This sample stays separate from real rooms.</p>
       <div class="first-actions"><button class="button button-primary" data-action="submit-demo" type="button" ${!selected || state.status === 'completed' ? 'disabled' : ''}>${state.status === 'completed' ? 'Sample complete' : 'Resolve sample turn'}</button><button class="button button-secondary" data-action="reset-demo" type="button">Reset demo</button></div>
-      <p class="action-note">Choose Mira’s square. Teo holds position so you can see each resolution.</p><ul class="facts"><li>Sample names: Mira and Teo</li><li>Separate demo storage</li><li>No real room created</li></ul></div>
+      <p class="action-note">Choose Mira’s square. Teo holds position so you can see each resolution.</p><ul class="facts"><li>Sample names: Mira and Teo</li><li>Separate demo storage</li><li>No real room created</li></ul>${noticeMarkup()}</div>
       <section class="game-board-panel" aria-labelledby="board-title"><img class="field-texture" src="/folded-map.webp" srcset="/folded-map-512.webp 512w, /folded-map.webp 1024w" sizes="(max-width: 760px) 92vw, 620px" width="1024" height="1024" alt="" decoding="async" /><div class="board-meta"><div><p class="eyebrow">Sample room</p><h2 id="board-title">Cypress Pass · Clear paths</h2></div><p>${state.status === 'completed' ? 'Sample complete' : `Turn ${state.round} of 5`}</p></div>${boardMarkup(state, state.status === 'active')}<div class="board-legend" aria-label="Map key"><span><i class="legend-scout north"></i>Mira</span><span><i class="legend-scout south"></i>Teo</span><span><i class="legend-marker"></i>Marker</span><span><i class="legend-forest"></i>Blocked forest</span></div></section></section>
     ${playPanel(state)}${howPanel()}</main>`;
 }
@@ -219,8 +272,8 @@ function demoContent(): string {
 function legalContent(kind: 'privacy' | 'terms'): string {
   const privacy = kind === 'privacy';
   document.title = `${privacy ? 'Privacy' : 'Terms'} — Roomcode Tactics`;
-  return `<main id="main" tabindex="-1" class="legal-main"><article class="legal-copy"><p class="eyebrow">Roomcode Tactics</p><h1>${privacy ? 'Privacy for your room' : 'Terms for playing Roomcode Tactics'}</h1>
-  ${privacy ? `<h2>What the game stores</h2><p>The room service stores each player name, room code, signed room pass, moves, and match result for up to 24 hours.</p><h2>Why it stores this</h2><p>The game uses this data to let two players reconnect and finish the same room. It does not use analytics or advertising trackers.</p><h2>Where the data goes</h2><p>Your browser sends game requests only to Roomcode Tactics and its room service. The service keeps room state on its own durable storage.</p><h2>Your choices</h2><p>Use a nickname if you prefer. Leaving a room does not delete it early; it expires automatically.</p>` : `<h2>Using the game</h2><p>Roomcode Tactics is a free game for private matches between two people. Do not use a name or room link to harass another person.</p><h2>Room links</h2><p>Anyone with a room link can ask to join while the second seat is open. Keep the link between the two players you invite.</p><h2>Availability</h2><p>Room passes reconnect after a page refresh. A room expires after 24 hours.</p><h2>Changes</h2><p>We may update the game or these terms. The current version is shown in the page footer.</p>`}
+  return `<main id="main" tabindex="-1" class="legal-main"><article class="legal-copy"><p class="eyebrow">Roomcode Tactics</p><h1 id="page-title" tabindex="-1">${privacy ? 'Privacy for your room' : 'Terms for playing Roomcode Tactics'}</h1>
+  ${privacy ? `<h2>What the game stores</h2><p>The room service stores player names, room codes, moves, pass hashes, and results. It deletes all room data automatically after 24 hours.</p><p>Your browser stores the room code, your name, its expiry, and an opaque room pass so it can reconnect. It removes expired entries on your next visit.</p><h2>Why it stores this</h2><p>The game uses this data to let two players reconnect and finish the same room. It does not use analytics or advertising trackers.</p><h2>Where the data goes</h2><p>Your browser sends game requests only to Roomcode Tactics and its room service. The service keeps room state on its own durable storage.</p><h2>Your choices</h2><p>Use a nickname if you prefer. Choose “Forget this room” to remove that entry from this browser. The shared room remains until its automatic deletion.</p>` : `<h2>Using the game</h2><p>Roomcode Tactics is a free game for private matches between two people. Do not use a name or room link to harass another person.</p><h2>Room links</h2><p>Anyone with a room link can ask to join while the second seat is open. Keep the link between the two players you invite.</p><h2>Availability</h2><p>Room passes reconnect after a page refresh. The service deletes all room data after 24 hours.</p><h2>Changes</h2><p>We may update the game or these terms. The current version is shown in the page footer.</p>`}
   </article></main>`;
 }
 
@@ -229,7 +282,7 @@ function header(): string {
 }
 
 function footer(): string {
-  return `<footer class="site-footer"><p>A five-turn room-code tactics game for two friends.</p><p><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span>Built by Param Factory</span></p><p>Build <span data-build>${escapeHtml(BUILD_ID)}</span> · Original map illustration made for this game.</p></footer>`;
+  return `<footer class="site-footer"><p>A five-turn room-code tactics game for two friends.</p><p><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span>Built by Param Factory</span></p><p>Build <span data-build>${escapeHtml(BUILD_ID)}</span> · Generated map texture.</p></footer>`;
 }
 
 function settingsDialog(): string {
@@ -240,50 +293,59 @@ function render(): void {
   settings = readSettings();
   persistSettings();
   const path = location.pathname;
+  setRouteMetadata(path);
   const routeChanged = lastRenderedPath !== path;
   lastRenderedPath = path;
   if (path === '/privacy') app.innerHTML = `${header()}${legalContent('privacy')}${footer()}${settingsDialog()}<p class="sr-only" aria-live="polite">Privacy page</p>`;
   else if (path === '/terms') app.innerHTML = `${header()}${legalContent('terms')}${footer()}${settingsDialog()}<p class="sr-only" aria-live="polite">Terms page</p>`;
   else {
     document.title = isDemo() ? 'Demo — Roomcode Tactics' : 'Roomcode Tactics — Plan turns with a friend';
-    app.innerHTML = `${header()}${isDemo() ? demoContent() : homeContent()}${footer()}${settingsDialog()}<p class="sr-only" aria-live="polite" id="announcer">${escapeHtml(notice)}</p>`;
+    app.innerHTML = `${header()}${isDemo() ? demoContent() : homeContent()}${footer()}${settingsDialog()}`;
   }
   if (routeChanged) document.querySelector<HTMLElement>('#page-title')?.focus({ preventScroll: true });
   wire();
   if (roomState?.lastResolution) lastResolutionSeen = roomState.lastResolution;
 }
 
-function rerender(message = ''): void { notice = message; render(); }
+function rerender(message = '', kind: NoticeKind = 'status'): void {
+  notice = message;
+  noticeKind = kind;
+  render();
+  if (kind === 'error') document.querySelector<HTMLElement>('.notice-error')?.focus();
+}
 
 async function createRoom(form: HTMLFormElement): Promise<void> {
   const name = String(new FormData(form).get('name') || '');
+  draftName = name;
   inFlight = true;
   try {
     const result = await api<RoomState & { token: string }>('/v1/rooms', { method: 'POST', body: JSON.stringify({ name }) });
-    saveSession(result.roomCode, { token: result.token, name });
+    saveSession(result.roomCode, { token: result.token, name, expiresAt: result.expiresAt });
+    draftName = '';
     roomState = result;
     selected = null;
     navigate(`/?room=${result.roomCode}`, false);
     rerender('Room created. Copy the link for your friend.');
-  } catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be created.'); } finally { inFlight = false; }
+  } catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be created. Try again.', 'error'); } finally { inFlight = false; }
 }
 
 async function joinRoom(form: HTMLFormElement): Promise<void> {
   const code = roomCodeFromUrl();
   if (!code) return;
   const name = String(new FormData(form).get('name') || '');
+  draftName = name;
   inFlight = true;
   try {
     const result = await api<RoomState & { token: string }>(`/v1/rooms/${code}/join`, { method: 'POST', body: JSON.stringify({ name }) });
-    saveSession(code, { token: result.token, name }); roomState = result; selected = null; rerender('You joined the room. Choose your first move.');
-  } catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be joined.'); } finally { inFlight = false; }
+    saveSession(code, { token: result.token, name, expiresAt: result.expiresAt }); draftName = ''; roomState = result; selected = null; rerender('You joined the room. Choose your first move.');
+  } catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be joined. Check the link, then try again.', 'error'); } finally { inFlight = false; }
 }
 
 async function refreshRoom(): Promise<void> {
   const code = roomCodeFromUrl(); const session = code ? getSession(code) : null;
   if (!code || !session) return;
   try { roomState = await api<RoomState>(`/v1/rooms/${code}`, { headers: { Authorization: `Bearer ${session.token}` } }); selected = null; rerender('Room refreshed.'); }
-  catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be refreshed.'); }
+  catch (error) { rerender(error instanceof Error ? error.message : 'The room could not be refreshed. Check your connection, then try again.', 'error'); }
 }
 
 async function submitMove(): Promise<void> {
@@ -293,7 +355,7 @@ async function submitMove(): Promise<void> {
   try {
     roomState = await api<RoomState>(`/v1/rooms/${code}/moves`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: JSON.stringify({ target: selected, move_id: crypto.randomUUID().replace(/-/g, '') }) });
     selected = null; rerender(roomState.yourMoveLocked ? 'Move locked. Waiting for your friend.' : roomState.lastResolution || 'Move resolved.');
-  } catch (error) { rerender(error instanceof Error ? error.message : 'The move could not be submitted.'); } finally { inFlight = false; }
+  } catch (error) { rerender(error instanceof Error ? error.message : 'The move could not be submitted. Check your connection, then try again.', 'error'); } finally { inFlight = false; }
 }
 
 function updateDemo(target: Coordinate): void {
@@ -317,11 +379,25 @@ function updateDemo(target: Coordinate): void {
 }
 
 function copyLink(): void {
-  navigator.clipboard?.writeText(location.href).then(() => rerender('Room link copied.')).catch(() => rerender('Copy the room link from your browser address bar.'));
+  if (!navigator.clipboard) {
+    rerender('Copy the room link from your browser address bar.');
+    return;
+  }
+  void navigator.clipboard.writeText(location.href)
+    .then(() => rerender('Room link copied.'))
+    .catch(() => rerender('The room link could not be copied. Copy it from your browser address bar.', 'error'));
 }
 
 function resetDemo(): void { localStorage.removeItem(DEMO_KEY); roomState = demoSeed(); selected = null; localStorage.setItem(DEMO_KEY, JSON.stringify(roomState)); rerender('Demo reset. No real room was changed.'); }
 function startReal(): void { localStorage.removeItem(DEMO_KEY); localStorage.removeItem(DEMO_SETTINGS_KEY); roomState = null; selected = null; navigate('/', false); rerender('Demo cleared. Create a real room when you are ready.'); }
+function forgetRoom(): void {
+  const code = roomCodeFromUrl();
+  if (code) localStorage.removeItem(sessionKey(code));
+  roomState = null;
+  selected = null;
+  navigate('/', false);
+  rerender('This room was removed from this browser. The shared room still expires automatically.');
+}
 
 function navigate(to: string, renderAfter = true): void { history.pushState({}, '', to); if (renderAfter) { roomState = null; selected = null; boot(); } }
 
@@ -345,6 +421,7 @@ function wire(): void {
   document.querySelector('[data-action="submit-demo"]')?.addEventListener('click', () => { if (selected) updateDemo(selected); });
   document.querySelectorAll('[data-action="reset-demo"]').forEach((button) => button.addEventListener('click', resetDemo));
   document.querySelector('[data-action="start-real"]')?.addEventListener('click', startReal);
+  document.querySelector('[data-action="forget-room"]')?.addEventListener('click', forgetRoom);
   document.querySelectorAll('[data-action="new-room"]').forEach((button) => button.addEventListener('click', () => { roomState = null; selected = null; navigate('/'); }));
   const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog');
   document.querySelector('[data-action="settings"]')?.addEventListener('click', () => dialog?.showModal());
@@ -359,6 +436,7 @@ function wire(): void {
 }
 
 async function boot(): Promise<void> {
+  purgeExpiredSessions();
   if (isDemo()) {
     roomState = safeParse<RoomState>(localStorage.getItem(DEMO_KEY)) || demoSeed();
     localStorage.setItem(DEMO_KEY, JSON.stringify(roomState)); selected = null; render(); return;
@@ -366,7 +444,7 @@ async function boot(): Promise<void> {
   const code = roomCodeFromUrl(); const session = code ? getSession(code) : null;
   if (code && session) {
     try { roomState = await api<RoomState>(`/v1/rooms/${code}`, { headers: { Authorization: `Bearer ${session.token}` } }); notice = 'Rejoined your saved room.'; }
-    catch (error) { roomState = null; notice = error instanceof Error ? error.message : 'Open the room link to join again.'; }
+    catch (error) { roomState = null; notice = error instanceof Error ? error.message : 'Open the room link to join again.'; noticeKind = 'error'; }
   }
   render();
 }

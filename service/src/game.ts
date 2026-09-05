@@ -42,6 +42,7 @@ type RoomRow = {
 };
 
 type MoveRow = { move_id: string; target_x: number; target_y: number };
+type PassRow = { room_id: string; player: PlayerNumber; expires_at: number };
 
 export type PublicRoomState = {
   roomCode: string;
@@ -82,10 +83,6 @@ function roomId(): string {
   return randomBytes(18).toString('base64url');
 }
 
-function b64Json(value: unknown): string {
-  return Buffer.from(JSON.stringify(value)).toString('base64url');
-}
-
 type TokenPayload = { r: string; p: PlayerNumber; e: number };
 
 function sameCoordinate(a: Coordinate, b: Coordinate): boolean {
@@ -99,8 +96,9 @@ function asRoom(value: unknown): RoomRow | undefined {
 export class GameStore {
   private db: DatabaseSync;
   private secret: Buffer;
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
-  constructor(public readonly dataDir: string) {
+  constructor(public readonly dataDir: string, private readonly retentionMs = 86_400_000) {
     mkdirSync(dataDir, { recursive: true });
     this.secret = this.readOrCreateSecret();
     // Azure Files' SMB mount does not expose SQLite's POSIX byte locks. The
@@ -146,12 +144,41 @@ export class GameStore {
         UNIQUE (room_id, player, move_id),
         FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS room_passes (
+        token_hash TEXT PRIMARY KEY,
+        room_id TEXT NOT NULL,
+        player INTEGER NOT NULL CHECK (player IN (1, 2)),
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+      );
       CREATE INDEX IF NOT EXISTS rooms_expiry_idx ON rooms(expires_at);
+      CREATE INDEX IF NOT EXISTS room_passes_expiry_idx ON room_passes(expires_at);
     `);
+    this.scheduleCleanup();
   }
 
   close(): void {
+    if (this.cleanupTimer) clearTimeout(this.cleanupTimer);
+    this.cleanupTimer = null;
     this.db.close();
+  }
+
+  purgeExpired(now = Date.now()): number {
+    return Number(this.db.prepare('DELETE FROM rooms WHERE expires_at <= ?').run(now).changes);
+  }
+
+  private scheduleCleanup(): void {
+    if (this.cleanupTimer) clearTimeout(this.cleanupTimer);
+    this.purgeExpired();
+    const next = this.db.prepare('SELECT MIN(expires_at) AS expires_at FROM rooms').get() as { expires_at: number | null };
+    if (next.expires_at === null) {
+      this.cleanupTimer = null;
+      return;
+    }
+    const delay = Math.min(2_147_000_000, Math.max(1, next.expires_at - Date.now()));
+    this.cleanupTimer = setTimeout(() => this.scheduleCleanup(), delay);
+    this.cleanupTimer.unref();
   }
 
   private readOrCreateSecret(): Buffer {
@@ -167,11 +194,22 @@ export class GameStore {
   }
 
   private issueToken(room: RoomRow, player: PlayerNumber): string {
-    const body = b64Json({ r: room.id, p: player, e: room.expires_at } satisfies TokenPayload);
-    return `${body}.${this.sign(body)}`;
+    const token = randomBytes(32).toString('base64url');
+    this.db.prepare('INSERT INTO room_passes (token_hash, room_id, player, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(this.sign(token), room.id, player, room.expires_at, Date.now());
+    return token;
   }
 
   playerFromToken(token: string): TokenPayload {
+    const opaque = this.db.prepare('SELECT room_id, player, expires_at FROM room_passes WHERE token_hash = ?')
+      .get(this.sign(token)) as PassRow | undefined;
+    if (opaque) {
+      if (opaque.expires_at <= Date.now()) throw new GameError(401, 'invalid_token', 'Your room pass expired. Create a new room to play again.');
+      return { r: opaque.room_id, p: opaque.player, e: opaque.expires_at };
+    }
+
+    // Accept passes issued before opaque storage was introduced. They expire
+    // with their original room and cannot be used to issue a new legacy pass.
     const [body, signature] = token.split('.');
     if (!body || !signature) throw new GameError(401, 'invalid_token', 'Your room pass is missing or invalid. Rejoin using the room link.');
     const expected = Buffer.from(this.sign(body));
@@ -191,9 +229,9 @@ export class GameStore {
   }
 
   private findRoom(code: string): RoomRow {
+    this.purgeExpired();
     const room = asRoom(this.db.prepare('SELECT * FROM rooms WHERE code = ?').get(code));
     if (!room) throw new GameError(404, 'room_not_found', 'That room code does not exist. Check the link and try again.');
-    if (room.expires_at < Date.now()) throw new GameError(410, 'room_expired', 'This room expired after 24 hours. Create a new room to play again.');
     return room;
   }
 
@@ -208,6 +246,7 @@ export class GameStore {
   createRoom(nameInput: unknown): { state: PublicRoomState; token: string } {
     const name = cleanName(nameInput);
     const now = Date.now();
+    this.purgeExpired(now);
     const mapCount = this.db.prepare('SELECT COUNT(*) AS count FROM rooms').get() as { count: number };
     let room: RoomRow | undefined;
     for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -215,7 +254,7 @@ export class GameStore {
       try {
         this.db.prepare(`INSERT INTO rooms (id, code, map_index, p1_name, created_at, updated_at, expires_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(roomId(), candidate, mapCount.count % MAPS.length, name, now, now, now + 86_400_000);
+          .run(roomId(), candidate, mapCount.count % MAPS.length, name, now, now, now + this.retentionMs);
         room = this.findRoom(candidate);
         break;
       } catch (error) {
@@ -224,6 +263,7 @@ export class GameStore {
     }
     if (!room) throw new GameError(503, 'room_unavailable', 'A room could not be created. Please try again.');
     const token = this.issueToken(room, 1);
+    this.scheduleCleanup();
     return { state: this.publicState(room, 1), token };
   }
 
@@ -232,8 +272,9 @@ export class GameStore {
     const room = this.findRoom(code);
     if (room.p2_name) throw new GameError(409, 'room_full', 'This room already has two players. Ask your friend for a new room link.');
     const now = Date.now();
-    this.db.prepare("UPDATE rooms SET p2_name = ?, status = 'active', updated_at = ? WHERE id = ? AND p2_name IS NULL")
+    const update = this.db.prepare("UPDATE rooms SET p2_name = ?, status = 'active', updated_at = ? WHERE id = ? AND p2_name IS NULL")
       .run(name, now, room.id);
+    if (update.changes !== 1) throw new GameError(409, 'room_full', 'This room already has two players. Ask your friend for a new room link.');
     const joined = this.findRoom(code);
     const token = this.issueToken(joined, 2);
     return { state: this.publicState(joined, 2), token };

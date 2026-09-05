@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { GameError, GameStore } from './game.js';
 
-type AppOptions = { dataDir: string; buildSha?: string; rateWindowMs?: number; rateLimit?: number };
+type AppOptions = { dataDir: string; buildSha?: string; rateWindowMs?: number; rateLimit?: number; retentionMs?: number };
 
 class RateLimiter {
   private entries = new Map<string, { used: number; started: number }>();
@@ -9,6 +9,11 @@ class RateLimiter {
 
   take(key: string): { allowed: boolean; retryAfter: number } {
     const now = Date.now();
+    if (this.entries.size > 1_000) {
+      for (const [entryKey, value] of this.entries) {
+        if (now - value.started >= this.windowMs) this.entries.delete(entryKey);
+      }
+    }
     const entry = this.entries.get(key);
     if (!entry || now - entry.started >= this.windowMs) {
       this.entries.set(key, { used: 1, started: now });
@@ -21,7 +26,10 @@ class RateLimiter {
 }
 
 function clientIp(forwarded: string | undefined): string {
-  return forwarded?.split(',')[0]?.trim() || 'unknown';
+  // Azure ingress appends the network-observed client to the right. Values to
+  // its left may be caller supplied, so they must never define an allowance.
+  const chain = forwarded?.split(',').map((value) => value.trim()).filter(Boolean) || [];
+  return chain.at(-1) || 'unknown';
 }
 
 function code(value: string): string {
@@ -42,7 +50,7 @@ function allowedOrigin(origin: string | undefined): boolean {
 
 export function createGameApp(options: AppOptions): { app: Hono; store: GameStore } {
   const app = new Hono();
-  const store = new GameStore(options.dataDir);
+  const store = new GameStore(options.dataDir, options.retentionMs);
   const limiter = new RateLimiter(options.rateWindowMs ?? 10_000, options.rateLimit ?? 40);
 
   app.use('*', async (context, next) => {

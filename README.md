@@ -7,10 +7,11 @@ then both players choose their moves whenever they are ready.
 
 ## Run locally
 
-Requires Node 22.13 or newer.
+Requires Node 22.13 or newer. Install the locked dependencies from a clean
+checkout:
 
 ```bash
-npm install
+npm ci
 npm run dev:service
 npm run dev
 ```
@@ -28,11 +29,10 @@ npm test
 npm run build
 ```
 
-`npm run test:service` verifies durable SQLite recovery after a service restart,
-signed room-pass isolation, idempotent move submission, a completed two-player
-five-turn match, and rate-limit responses. `npm test` runs the browser claims,
-two independent browser clients, phone layout, keyboard board control, axe,
-legal routes, 404, and a live 429/`Retry-After` allowance check.
+`npm run test:service` verifies automatic deletion, durable SQLite recovery,
+opaque room-pass isolation, idempotent moves, a complete match, and request
+limits. `npm test` runs the browser claims, two independent clients, phone
+reflow, keyboard controls, accessibility checks, legal routes, and the 404.
 
 Each public product claim is listed in `.factory/claims.json` and can be run
 alone with its listed `npm test -- --grep @claim:...` command.
@@ -51,10 +51,11 @@ The static browser game deploys at
 product-owned `sf-roomcode-tactics-realtime` service at
 `https://roomcode-tactics-realtime.sociobot.in`.
 
-The service is Node + Hono + SQLite. It persists the game before responding,
-stores the SQLite database and generated HMAC signing key under `/data` in
-production, validates signed opaque room passes, supports idempotency keys for
-move submission, and applies per-client rate limits with `Retry-After`.
+The service is Node + Hono + SQLite. It saves an accepted move before replying
+and restores that move after a restart. Repeating the same move ID returns the
+saved state without adding another move. New room passes are opaque, and only
+their hashes are stored. Repeated requests from one observed client receive
+HTTP 429 and `Retry-After` when the allowance is used.
 
 ## Deploy
 
@@ -66,12 +67,14 @@ process-local durable state.
 
 ## Scope and privacy
 
-Room data is limited to a nickname, room code, room pass, moves, and result.
-It expires after 24 hours. There are no analytics, ad scripts, third-party
-fonts, accounts, payments, public matchmaking, ladders, or long-lived worlds.
-Read the in-product `/privacy` and `/terms` pages for player-facing details.
+Room data is limited to names, a room code, pass hashes, moves, and the result.
+The service deletes the room and related rows after 24 hours. The browser
+removes expired room entries on the next visit. There are no analytics, ad
+scripts, third-party fonts, accounts, payments, public matchmaking, ladders,
+or long-lived worlds. Read `/privacy` and `/terms` for player-facing details.
 
-## Session shape
+## Match and performance
 
-A round is usually 4–8 minutes when both friends are present, or can take up
-to 24 hours asynchronously. A full match ends after five simultaneous turns.
+A full match ends after five simultaneous turns. Each match uses a 7×7 map.
+Board resolution targets 60 fps and averages at least 55 fps in the tested
+mid-range phone profile. The exact test is listed in `.factory/claims.json`.

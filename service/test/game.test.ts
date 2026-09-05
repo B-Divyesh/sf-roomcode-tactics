@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { createGameApp } from '../src/app.ts';
 
@@ -28,7 +30,7 @@ async function joinRoom(service: ReturnType<typeof createGameApp>, code: string,
   return response.json() as Promise<CreatedRoom>;
 }
 
-test('durable state, idempotent move, and wrong-room rejection survive a service restart', async () => {
+test('@claim:durable-room-state @claim:idempotent-moves durable state and idempotent moves survive a service restart', async () => {
   const { dir, service } = await sandbox();
   try {
     const first = await create(service, 'Mira');
@@ -75,19 +77,129 @@ test('two independent players can finish five simultaneous turns', async () => {
     assert.equal(final?.status, 'completed');
     assert.equal(final?.winner, 'opponent', 'the second player sees the first player win');
     assert.equal(final?.round, 5);
+    const extraMove = await request(service, `/v1/rooms/${first.roomCode}/moves`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${first.token}` },
+      body: JSON.stringify({ target: moves.at(-1), move_id: 'north_turn_after_end' }),
+    });
+    assert.equal(extraMove.status, 409, 'a completed match rejects later moves');
   } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
 });
 
-test('rate limits return 429 and Retry-After after the allowance', async () => {
+test('invalid, boundary, origin, and missing-pass requests return useful errors', async () => {
+  const { dir, service } = await sandbox();
+  try {
+    for (const name of [undefined, 'A', 'A'.repeat(21), 'Mira<script>']) {
+      const response = await request(service, '/v1/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      assert.equal(response.status, 400);
+      const body = await response.json() as { error?: { message?: string } };
+      assert.ok(body.error?.message?.length, 'the invalid request explains what to correct');
+    }
+    const origin = await request(service, '/v1/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://not-roomcode.example' },
+      body: JSON.stringify({ name: 'Mira' }),
+    });
+    assert.equal(origin.status, 403);
+
+    const created = await create(service, 'Mira');
+    const missingPass = await request(service, `/v1/rooms/${created.roomCode}`);
+    assert.equal(missingPass.status, 401);
+    const badCode = await request(service, '/v1/rooms/ABC');
+    assert.equal(badCode.status, 404);
+    const health = await request(service, '/health');
+    assert.equal(health.status, 200);
+  } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('@claim:request-limits caller-supplied forwarding values cannot reset the request allowance', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'roomcode-tactics-rate-'));
   const service = createGameApp({ dataDir: dir, rateLimit: 3, rateWindowMs: 10_000 });
   try {
     for (let index = 0; index < 3; index += 1) {
-      const response = await request(service, '/v1/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.40' }, body: JSON.stringify({ name: `Player ${index}` }) });
+      const response = await request(service, '/v1/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `caller-${index}, 203.0.113.40` }, body: JSON.stringify({ name: `Player ${index}` }) });
       assert.equal(response.status, 201);
     }
-    const blocked = await request(service, '/v1/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.40' }, body: JSON.stringify({ name: 'Fourth player' }) });
+    const blocked = await request(service, '/v1/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': 'a-new-caller-value, 203.0.113.40' }, body: JSON.stringify({ name: 'Fourth player' }) });
     assert.equal(blocked.status, 429);
     assert.match(blocked.headers.get('Retry-After') || '', /^[1-9]\d*$/);
+    const otherClient = await request(service, '/v1/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': 'a-new-caller-value, 203.0.113.41' }, body: JSON.stringify({ name: 'Other client' }) });
+    assert.equal(otherClient.status, 201);
   } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('@claim:opaque-room-pass new room passes expose no room or player fields', async () => {
+  const { dir, service } = await sandbox();
+  let serviceClosed = false;
+  try {
+    const first = await create(service, 'Mira');
+    assert.match(first.token, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(first.token.includes('.'), false);
+    assert.equal(Buffer.from(first.token, 'base64url').byteLength, 32);
+    const state = await request(service, `/v1/rooms/${first.roomCode}`, { headers: { Authorization: `Bearer ${first.token}` } });
+    assert.equal(state.status, 200);
+    service.store.close();
+    serviceClosed = true;
+    const database = new DatabaseSync(`file:${join(dir, 'roomcode-tactics-live.sqlite')}?nolock=1`);
+    try {
+      const stored = database.prepare('SELECT token_hash FROM room_passes').get() as { token_hash: string };
+      assert.notEqual(stored.token_hash, first.token, 'the database does not store the bearer pass');
+      assert.equal(stored.token_hash.length, 43);
+    } finally { database.close(); }
+  } finally {
+    if (!serviceClosed) service.store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('@claim:room-expiry expired rooms, moves, and pass hashes are deleted', async () => {
+  const defaultSandbox = await sandbox();
+  try {
+    const started = Date.now();
+    const created = await request(defaultSandbox.service, '/v1/rooms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Default expiry' }),
+    });
+    assert.equal(created.status, 201);
+    const state = await created.json() as { expiresAt: number };
+    assert.ok(state.expiresAt - started >= 86_399_000 && state.expiresAt - started <= 86_401_000);
+  } finally {
+    defaultSandbox.service.store.close();
+    await rm(defaultSandbox.dir, { recursive: true, force: true });
+  }
+
+  const dir = await mkdtemp(join(tmpdir(), 'roomcode-tactics-expiry-'));
+  const service = createGameApp({ dataDir: dir, rateLimit: 1000, retentionMs: 80 });
+  let serviceClosed = false;
+  try {
+    const first = await create(service, 'Mira');
+    await joinRoom(service, first.roomCode, 'Teo');
+    const move = await request(service, `/v1/rooms/${first.roomCode}/moves`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${first.token}` },
+      body: JSON.stringify({ target: { x: 3, y: 5 }, move_id: 'expiry_move_001' }),
+    });
+    assert.equal(move.status, 200);
+    await delay(200);
+    service.store.close();
+    serviceClosed = true;
+
+    const database = new DatabaseSync(`file:${join(dir, 'roomcode-tactics-live.sqlite')}?nolock=1`);
+    try {
+      assert.equal((database.prepare('SELECT COUNT(*) AS count FROM rooms').get() as { count: number }).count, 0);
+      assert.equal((database.prepare('SELECT COUNT(*) AS count FROM moves').get() as { count: number }).count, 0);
+      assert.equal((database.prepare('SELECT COUNT(*) AS count FROM room_passes').get() as { count: number }).count, 0);
+    } finally { database.close(); }
+    const restarted = createGameApp({ dataDir: dir, rateLimit: 1000 });
+    try {
+      const gone = await request(restarted, `/v1/rooms/${first.roomCode}`, { headers: { Authorization: `Bearer ${first.token}` } });
+      assert.equal(gone.status, 404);
+    } finally { restarted.store.close(); }
+  } finally {
+    if (!serviceClosed) service.store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });

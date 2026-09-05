@@ -1,8 +1,10 @@
 {
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/*.{css,js,png,jpg,jpeg,svg,webp,avif,ico,woff2,json,txt,xml}"]
-  },
+  "routes": [
+    { "route": "/demo", "rewrite": "/index.html" },
+    { "route": "/privacy", "rewrite": "/index.html" },
+    { "route": "/terms", "rewrite": "/index.html" },
+    { "route": "/404.html", "statusCode": 404 }
+  ],
   "globalHeaders": {
     "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://roomcode-tactics-realtime.sociobot.in http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",

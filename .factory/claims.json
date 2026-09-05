@@ -1,17 +1,24 @@
 [
   {
     "id": "demo-never-saves-real",
-    "claim": "The sample does not create or change a real room",
-    "where": "Demo banner and README",
+    "claim": "The complete sample never reads, changes, or creates a real room",
+    "where": "Demo banner, demo page, and README",
     "test": "npm test -- --grep @claim:demo-never-saves-real",
-    "sandbox": "Open /demo, resolve a sample turn, and assert no request reaches the real room API."
+    "sandbox": "Seed an unrelated real session, enter the sample from the landing page, finish five turns, and assert no room-service request or real-key change."
   },
   {
     "id": "no-tracking",
     "claim": "The landing page makes no third-party tracking request",
-    "where": "First-screen facts and privacy page",
+    "where": "First-screen facts, privacy page, and README",
     "test": "npm test -- --grep @claim:no-tracking",
     "sandbox": "Record every request from a fresh landing-page load and assert all hosts are the product origin."
+  },
+  {
+    "id": "request-destinations",
+    "claim": "Real play contacts only Roomcode Tactics and its room service",
+    "where": "Privacy page",
+    "test": "npm test -- --grep @claim:request-destinations",
+    "sandbox": "Create a real test room while recording requests and assert only the client and product-owned room-service origins are contacted."
   },
   {
     "id": "restart-demo",
@@ -35,6 +42,13 @@
     "sandbox": "Create a room, reload the same browser context, and observe the same saved room."
   },
   {
+    "id": "expired-session-cleanup",
+    "claim": "The browser removes expired room entries on the next visit",
+    "where": "Privacy page",
+    "test": "npm test -- --grep @claim:expired-session-cleanup",
+    "sandbox": "Seed an expired browser room entry, reload, and assert the entry is removed."
+  },
+  {
     "id": "free-join",
     "claim": "Two people create and join a room without an account or payment",
     "where": "First-screen facts and README",
@@ -44,16 +58,16 @@
   {
     "id": "two-seat-room",
     "claim": "A room has two seats",
-    "where": "Privacy and limits section",
+    "where": "First-screen facts and privacy section",
     "test": "npm test -- --grep @claim:two-seat-room",
-    "sandbox": "Fill both seats from independent contexts, then assert a third join receives the room-full error."
+    "sandbox": "Fill both seats, then assert a third client receives a large, visible room-full recovery message."
   },
   {
     "id": "room-expiry",
-    "claim": "New rooms expire after 24 hours",
-    "where": "Privacy and limits section, privacy page, and terms",
-    "test": "npm test -- --grep @claim:room-expiry",
-    "sandbox": "Create a room through the live test service and assert its expiry is 24 hours from creation."
+    "claim": "Rooms expire after 24 hours, then the service deletes their room, move, and pass-hash rows",
+    "where": "Room flow, privacy page, terms, and README",
+    "test": "npm run test:claim:room-expiry",
+    "sandbox": "Assert the default expiry is 24 hours, use a shortened retention clock, and inspect SQLite after automatic cleanup."
   },
   {
     "id": "five-turn-match",
@@ -61,5 +75,47 @@
     "where": "First-screen facts, game instructions, and README",
     "test": "npm test -- --grep @claim:five-turn-match",
     "sandbox": "Two independent browser contexts submit five rounds and observe the winner end screen."
+  },
+  {
+    "id": "seven-by-seven-map",
+    "claim": "The sample and all three rotating maps use a seven-by-seven board",
+    "where": "Board and README",
+    "test": "npm test -- --grep @claim:seven-by-seven-map",
+    "sandbox": "Open the sample and create three real rooms, then assert each labelled board has 49 cells in seven columns."
+  },
+  {
+    "id": "durable-room-state",
+    "claim": "The room service saves an accepted move before replying and restores it after restart",
+    "where": "README architecture",
+    "test": "npm run test:claim:durable-room-state",
+    "sandbox": "Submit a move, receive success, restart the service against the same SQLite files, and verify that move is still locked."
+  },
+  {
+    "id": "idempotent-moves",
+    "claim": "Repeating the same move id does not submit a second move",
+    "where": "README architecture",
+    "test": "npm run test:claim:idempotent-moves",
+    "sandbox": "Repeat a saved move id and assert the saved result returns, while a different second move is rejected."
+  },
+  {
+    "id": "opaque-room-pass",
+    "claim": "New room passes are opaque and only their hashes are stored",
+    "where": "Privacy page and README architecture",
+    "test": "npm run test:claim:opaque-room-pass",
+    "sandbox": "Create a room, inspect the pass format, use it, then verify SQLite contains only a different fixed-length hash."
+  },
+  {
+    "id": "request-limits",
+    "claim": "Repeated requests from one observed client receive 429 and Retry-After after the allowance",
+    "where": "README architecture",
+    "test": "npm run test:claim:request-limits",
+    "sandbox": "Rotate caller-supplied forwarding values while keeping the ingress-observed address fixed and assert the allowance still returns 429 with Retry-After."
+  },
+  {
+    "id": "resolution-frame-rate",
+    "claim": "Board resolution targets 60 fps and averages at least 55 fps in the tested mid-range phone profile",
+    "where": "README performance section",
+    "test": "npm test -- --project=phone --grep @claim:resolution-frame-rate",
+    "sandbox": "Throttle the phone profile CPU by 4×, measure requestAnimationFrame delivery while resolving a sample turn, and assert at least 55 fps."
   }
 ]
