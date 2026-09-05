@@ -35,7 +35,9 @@ limits. `npm test` runs the browser claims, two independent clients, phone
 reflow, keyboard controls, accessibility checks, legal routes, and the 404.
 
 Each public product claim is listed in `.factory/claims.json` and can be run
-alone with its listed `npm test -- --grep @claim:...` command.
+alone with its exact listed command. After deployment, `npm run verify:live`
+checks both screen sizes, the sample, two real clients, recovery, and public
+service boundaries.
 
 ## Demo
 
