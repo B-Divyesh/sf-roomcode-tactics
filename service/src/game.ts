@@ -103,7 +103,10 @@ export class GameStore {
   constructor(public readonly dataDir: string) {
     mkdirSync(dataDir, { recursive: true });
     this.secret = this.readOrCreateSecret();
-    this.db = new DatabaseSync(join(dataDir, 'roomcode-tactics.sqlite'));
+    // Keep the production database name separate from the failed bootstrap
+    // file created before the service's compatible journal policy was shipped.
+    // Future starts always use this stable durable path.
+    this.db = new DatabaseSync(join(dataDir, 'roomcode-tactics-live.sqlite'));
     // Azure Files uses network file locking. SQLite's default rollback journal is
     // the compatible single-writer mode here; WAL mode can leave the mounted
     // database locked during a container restart.
