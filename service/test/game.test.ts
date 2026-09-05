@@ -172,7 +172,7 @@ test('@claim:room-expiry expired rooms, moves, and pass hashes are deleted', asy
   }
 
   const dir = await mkdtemp(join(tmpdir(), 'roomcode-tactics-expiry-'));
-  const service = createGameApp({ dataDir: dir, rateLimit: 1000, retentionMs: 80 });
+  const service = createGameApp({ dataDir: dir, rateLimit: 1000, retentionMs: 1_000 });
   let serviceClosed = false;
   try {
     const first = await create(service, 'Mira');
@@ -183,7 +183,7 @@ test('@claim:room-expiry expired rooms, moves, and pass hashes are deleted', asy
       body: JSON.stringify({ target: { x: 3, y: 5 }, move_id: 'expiry_move_001' }),
     });
     assert.equal(move.status, 200);
-    await delay(200);
+    await delay(1_400);
     service.store.close();
     serviceClosed = true;
 
