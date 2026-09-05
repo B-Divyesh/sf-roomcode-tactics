@@ -1,5 +1,25 @@
 # Roomcode Tactics handoff
 
+## Independent verification 1 — FAIL
+
+Verification on 2026-09-05 reviewed browser candidate `77ba739`, service
+candidate `c26fd02`, and documentation revision `17e228b`. All nine declared
+claim commands, `npm run test:all`, the production build, worker URL check,
+Playwright axe checks, mobile Lighthouse, a deterministic sample, a real
+two-client match, and a controlled live service restart completed.
+
+The product is **not accepted**. Independent verification found 11 issues:
+room data is not deleted after the stated 24-hour retention period; callers can
+bypass rate limits with `X-Forwarded-For`; room and network errors are visually
+hidden; missing URLs and the designed 404 return 200; passes are not opaque;
+200% text sizing overflows; phone navigation targets are too small; SPA legal
+routes lose focus; the public claim inventory is incomplete; required frame-rate
+evidence is absent; and the live footer reports `Build dev`.
+
+One public quantitative claim, the README's “usually 4–8 minutes” session
+length, remains untested. Full evidence and severity are in
+`.factory/verification-1.md`.
+
 ## Public product
 
 - Public game: `https://roomcode-tactics.sociobot.in`
@@ -82,9 +102,10 @@ healthy live service and an actual product-revision restart/rejoin check.
 
 ## Known gaps and next steps
 
-There are no known user-path gaps in the shipped free scope. The failed initial
-bootstrap database file may remain on the newly created product share, but no
-real player data existed before the healthy revision; the active service uses
-the documented stable database path. Keep the room service at one replica when
-changing deployment configuration, because the SQLite mode intentionally relies
-on a single writer.
+Independent verification found 11 open issues; see `.factory/verification-1.md`.
+The highest priorities are enforcing actual room-data deletion, deriving rate
+limit identity from a trusted ingress value, and showing visible recovery text
+for failed room actions. The failed initial bootstrap database file may remain
+on the product share. Keep the room service at one replica when changing
+deployment configuration, because the SQLite mode intentionally relies on a
+single writer.
