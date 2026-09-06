@@ -1,5 +1,34 @@
 # Roomcode Tactics handoff
 
+## Strict review 1
+
+**PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
+
+The strict review covered browser implementation `bc1d44809599fdb4e3fb423317b7e1c9af61e067`,
+live release metadata `1e1abb188103166edb4a0a0a30d4075e9600a750`,
+service implementation `00afddae428a00b80338364df067348476f61718`, and
+documentation base `6fe01416f31df561620a5f5ad9c3ccb66e6fd1d2`.
+Only reports differ between the runtime candidate and later revisions. A clean
+release build matched the live JS and CSS byte-for-byte.
+
+Fresh desktop and phone sessions showed the job, audience, first actions, and
+game before scrolling. The deterministic sample reached its win screen,
+retained its banner, reset, and left real data unchanged. Two independent live
+clients completed five rounds and reached persistent win/loss end screens.
+Live isolation, health, 429/`Retry-After`, clipboard, forget, third-seat,
+restart-to-form, legal, and designed-404 paths passed.
+
+From a clean candidate checkout, all 21 exact claim commands passed with one
+source tag per claim. `npm run test:all` passed 6 service and 63 browser tests,
+with the intentional desktop skip of the phone-only frame test. `npm run build`
+produced 25.61 kB JavaScript and 12.00 kB CSS. The measured phone frame rate was
+59.00 fps under 4× CPU throttle. Fresh Lighthouse scored 100/100/100/100 with
+1.50 s LCP, zero CLS, and 13 ms total blocking time.
+
+All findings from verification 1 and 2 remain resolved. See
+`.factory/review-1.md` and `/work/.evidence/roomcode-tactics-review-1/`.
+No product code was changed, and no known product gap remains.
+
 ## Independent verification 3
 
 **PASS on 2026-09-05 UTC: zero findings and zero untested claims.**
