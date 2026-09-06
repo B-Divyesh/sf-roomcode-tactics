@@ -1,78 +1,69 @@
 # Roomcode Tactics handoff
 
-## Independent verification 4
+## Status
 
-**FAIL on 2026-09-06 UTC: one medium finding and one untested public claim.**
+**PASS — repair 4 resolved the one medium claims-coverage finding.**
 
-The game implementation works end to end, but the repaired claim tests do not
-fully prove their public wording. See `.factory/verification-4.md` for the full
-finding and evidence.
-
-## Reviewed versions
-
-- Implementation candidate: `7a37e41a5e865d05b857cae70c85b9e66a3273ab`
-- Documentation/static release: `2e802936fca37ba3400d0b68d1f0a1b2038b5677`
-- Live room-service build: `7a37e41a5e865d05b857cae70c85b9e66a3273ab`
+- Browser release implementation: `b14f6f18c608af3cab3580734c83f7951cd949fb`
+- Room-service implementation: `7a37e41a5e865d05b857cae70c85b9e66a3273ab`
+- Verification documentation/evidence revision: `2815033b3d261d4491e9b6b17c6f7d98f2b2184c`
 - Live URL: `https://roomcode-tactics.sociobot.in`
 
-Only the handoff, repair metadata, and live-verifier script differ between the
-implementation candidate and documentation revision. A clean `2e80293` build
-matched the live HTML, JavaScript, and CSS byte-for-byte.
+The static client was rebuilt with build id `b14f6f1`, deployed, and verified live. The room service had no runtime change, so its durable one-replica SQLite deployment remains unchanged.
 
-## What verification proved
+## Product check
 
-- All 25 exact claim commands passed from a separate clean clone after
-  `npm ci`.
-- `npm run test:all` passed 8 service tests and 69 browser tests, with one
-  intentional desktop skip for the phone-only frame check.
-- `npm run build` produced `dist/`: 29.06 kB JavaScript raw / 9.51 kB gzip and
-  13.51 kB CSS raw / 3.86 kB gzip.
-- Fresh desktop and phone browsers showed the job, audience, actions, facts,
-  and board before scrolling.
-- The sample reached its win screen on desktop and phone, persisted on reload,
-  reset to turn one, kept its demo label, and did not change a real-data
-  sentinel.
-- Independent real clients reached winner and loser screens. A separate match
-  reached a 0–0 draw. Reload, clipboard, room forget, third-seat recovery, and
-  fresh-room restart passed.
-- Fifteen live rooms covered difficulty 1–5, four weather states, three marker
-  rules, unique seeds, and same-seed repeatability.
-- All four keyboard directions remapped and persisted. Pointer, explicit touch,
-  default keyboard, reduced motion, 200% reflow, 44 px targets, focus, and live
-  Axe checks passed.
-- Tenant isolation returned 403. Live limiting returned 429 with
-  `Retry-After` after forwarding-value rotation.
-- A move survived a controlled restart of only
-  `sf-roomcode-tactics-realtime--0000005`; health and authenticated reads
-  returned 200 afterward.
-- The worker URL check passed. Lighthouse scored 100 in performance,
-  accessibility, best practices, and SEO; LCP was 1.659 s and CLS was 0.
+The job is to plan five simultaneous tactics turns with one friend. It is for two remote friends who want a short match without accounts or live timing. The first action is **Create a room**, with **Try it with sample data** beside it.
 
-Evidence is under `/work/.evidence/roomcode-tactics-verify-4/`.
+Fresh 1440×900 and 390×844 browser contexts showed the job, audience, both actions, facts, and playable board before scrolling. The board began at 152 px on desktop and 632.75 px on phone.
 
-## Known gap
+The live verifier completed the sample through **You won**, retained the demo label, reloaded the result, reset to turn one, and left a real-data sentinel unchanged. It completed independent two-client win/loss and draw matches, reloaded their end states, checked a visible third-seat recovery error, copied the exact link, forgot only a browser entry, and returned a winner to a fresh room form. It also verified opaque passes, cross-room 403 isolation, 429 with `Retry-After`, unchanged limiting after a rotated forwarding value, health 200, and the designed HTTP 404.
 
-The public claims and their exact tagged tests do not align completely:
+## Repair made
 
-- README says 5–10 minutes, while the manifest and test assert only under 10.
-- The seeded-map command does not assert the complete 1–5 cycle, every stated
-  weather/marker variant, or same-seed repeatability.
-- The scoring/draw command asserts only the draw half.
-- The remapping command changes only Down, while README promises four keys.
+The independent verifier found incomplete exact claim coverage. Product behavior already worked; this repair makes public claims and outcome tests match.
 
-These outcomes worked in independent live checks, except the human five-minute
-lower-bound estimate remains untested. The claims contract is still a release
-gate, so the verdict is FAIL.
+- README now promises a measurable active session of **under 10 minutes**, not an untested five-minute lower bound.
+- `seeded-map-content` now creates ten rooms and proves two 1–5 difficulty cycles, distinct and restart-repeatable seeds, every weather state, every marker-value rule, weather-closed legal-move rejection, and one added ordinary blocked trail per difficulty.
+- `scoring-draw` now proves both a higher-score win and an equal-score draw.
+- `remappable-controls` now proves default navigation, remapping, arrow-key replacement, and reload persistence for Left=A, Up=W, Right=D, and Down=S.
 
-## Next steps
+## Verification
 
-1. Decide whether 5–10 minutes is a measured promise or an intended session
-   description. Match README, manifest wording, and a meaningful test.
-2. Expand the seeded-map tagged test to cover difficulty 1–5, the public
-   weather and marker variants, and same-seed regeneration.
-3. Make the scoring test assert both a higher-score winner and an equal-score
-   draw.
-4. Make the controls test remap and use all four directions, then rerun every
-   claim command, the full suite, build, and live verification.
+From the documented clean setup (`npm ci`):
 
-No product code was changed during verification 4.
+- All 25 exact commands from `.factory/claims.json` passed.
+- Claim audit found 25 ids, each with exactly one `@claim:` tag.
+- `npm run test:all` passed 8 service tests and 69 browser tests; one desktop duplicate of the phone-only frame-rate test was intentionally skipped.
+- The phone frame-rate claim measured 60.00 fps at 4× CPU throttling.
+- `VITE_BUILD_SHA=b14f6f1 npm run build` passed and produced `dist/` with 29.06 kB JavaScript raw / 9.51 kB gzip and 13.51 kB CSS raw / 3.86 kB gzip.
+- `/opt/fleet/lib/verify-url.sh` passed live in 603 ms with no console errors, correct title/lang/main/one heading, complete image alt coverage, and labelled buttons.
+- The live Playwright Axe scans in `npm run verify:live` found zero serious or critical issues on home and privacy. The local suite also covers demo, terms, high contrast, keyboard, dialog focus, route and Back focus, reduced motion, 44 px phone targets, and 200% text reflow.
+
+Live evidence is in `/work/.evidence/roomcode-tactics-repair-4/`, including desktop and phone first screens, sample and real end screens, URL verification output, and the machine-readable live result.
+
+## Earlier findings
+
+All earlier verification and review findings remain resolved: expiry deletes room, move, and pass-hash rows; request allowance cannot be reset with caller-supplied forwarding values; recovery errors are visible; unknown routes return designed HTTP 404 responses; passes stay opaque; phone reflow and 44 px targets pass; and navigation focuses route headings.
+
+The expanded claim tests now also cover the previous content, controls, draw, session-fact, frame-rate, and release-provenance concerns.
+
+## Deployment and remaining notes
+
+`./deploy/static.sh` successfully published the static `b14f6f1` release and the HTTPS custom domain returned 200. No room-service deployment was needed, preserving the service volume, environment, probes, and one-replica bound.
+
+The product remains free as specified by the researched brief. It has no paid offer, so no billing-registration metadata is needed. The catalog description is a 75-character verb-first description and was copied to `/work/.evidence/catalog-description.txt`.
+
+No product gap is known. The standalone Axe CLI and Lighthouse CLI could not start their Selenium/CDP Chrome in this worker despite the Playwright browser being available; both failed before measuring a page. The live Playwright Axe scan and complete browser suite passed. No new Lighthouse score is recorded for this repair; verification 4 previously recorded a 100 score in all four categories.
+
+## Run and deploy
+
+```bash
+npm ci
+npm run test:all
+VITE_BUILD_SHA=$(git rev-parse --short HEAD) npm run build
+./deploy/static.sh
+EXPECTED_CLIENT_BUILD=$(git rev-parse --short HEAD) \
+  EXPECTED_SERVICE_BUILD=7a37e41a5e865d05b857cae70c85b9e66a3273ab \
+  npm run verify:live
+```
