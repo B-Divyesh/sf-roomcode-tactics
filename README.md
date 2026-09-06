@@ -2,7 +2,7 @@
 
 Plan five simultaneous tactics turns with a friend in a private room link.
 Roomcode Tactics is free for two remote friends. When both friends are ready,
-a five-turn match takes 5–10 minutes of active play. A room stays open for 24
+set aside under 10 minutes of active play for a five-turn match. A room stays open for 24
 hours when you play apart. Use a pointer, touch, or keyboard on a 7×7 map with
 five decisions each, names only, and no account. Create a room, share its link,
 then both players choose their moves whenever they are ready.

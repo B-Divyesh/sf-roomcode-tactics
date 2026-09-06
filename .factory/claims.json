@@ -36,10 +36,10 @@
   },
   {
     "id": "remappable-controls",
-    "claim": "Board focus keys can be remapped and stay in this browser",
+    "claim": "All four board focus keys can be remapped and stay in this browser",
     "where": "Settings dialog and README controls",
     "test": "npm test -- --grep @claim:remappable-controls",
-    "sandbox": "In the sample, prove arrow-key focus works, remap Down to S, prove S works and ArrowDown no longer moves focus, then reload and observe S."
+    "sandbox": "In the sample, prove all four arrow keys move board focus, remap Left/Up/Right/Down to A/W/D/S, prove each new key works while its arrow no longer moves focus, then reload and observe every saved binding."
   },
   {
     "id": "refresh-rejoin",
@@ -120,10 +120,10 @@
   },
   {
     "id": "seeded-map-content",
-    "claim": "New rooms show a repeatable map seed, difficulty, weather trail rule, and marker value rule",
+    "claim": "New rooms show a repeatable seed, cycle through difficulty 1–5, and rotate weather and marker value rules",
     "where": "Real board, README, and design notes",
     "test": "npm run test:claim:seeded-map-content",
-    "sandbox": "Create two rooms, inspect their public map data, prove distinct seeds and advancing difficulty, reject an adjacent weather-closed trail, then secure a two-point centre marker."
+    "sandbox": "Create ten rooms, assert two full 1–5 difficulty cycles and distinct seeds, cover Clear/Rain/Morning mist/Dry wind plus all-one/centre-two/outer-two marker values, reject a weather-closed adjacent trail for every closing weather, then restart the service and compare every saved map."
   },
   {
     "id": "scoring-draw",

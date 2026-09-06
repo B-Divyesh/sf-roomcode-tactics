@@ -101,30 +101,45 @@ test('@claim:settings-persist settings stay in this browser', async ({ page }) =
   expect(requests.every((url) => new URL(url).origin === 'http://127.0.0.1:5173')).toBe(true);
 });
 
-test('@claim:remappable-controls board focus keys work by default, can change, and persist', async ({ page }) => {
+test('@claim:remappable-controls all board focus keys work by default, can change, and persist', async ({ page }) => {
   await page.goto('/demo');
-  const origin = page.locator('[data-cell="3-5"]');
-  const downward = page.locator('[data-cell="3-6"]');
-  await origin.focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(downward).toBeFocused();
+  const bindings = [
+    { direction: 'left', key: 'a', arrow: 'ArrowLeft', origin: '3-6', target: '2-6' },
+    { direction: 'up', key: 'w', arrow: 'ArrowUp', origin: '3-6', target: '3-5' },
+    { direction: 'right', key: 'd', arrow: 'ArrowRight', origin: '3-6', target: '4-6' },
+    { direction: 'down', key: 's', arrow: 'ArrowDown', origin: '3-5', target: '3-6' },
+  ];
+
+  for (const binding of bindings) {
+    const origin = page.locator(`[data-cell="${binding.origin}"]`);
+    await origin.focus();
+    await page.keyboard.press(binding.arrow);
+    await expect(page.locator(`[data-cell="${binding.target}"]`)).toBeFocused();
+  }
 
   await page.getByRole('button', { name: 'Settings' }).click();
-  const downBinding = page.locator('[data-key-binding="down"]');
-  await downBinding.click();
-  await page.keyboard.press('s');
-  await expect(downBinding).toHaveAccessibleName('Move board focus down. Current key: s');
+  for (const binding of bindings) {
+    const control = page.locator(`[data-key-binding="${binding.direction}"]`);
+    await control.click();
+    await page.keyboard.press(binding.key);
+    await expect(control).toHaveAccessibleName(`Move board focus ${binding.direction}. Current key: ${binding.key}`);
+  }
   await page.getByRole('button', { name: 'Close settings' }).click();
 
-  await origin.focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(origin).toBeFocused();
-  await page.keyboard.press('s');
-  await expect(downward).toBeFocused();
+  for (const binding of bindings) {
+    const origin = page.locator(`[data-cell="${binding.origin}"]`);
+    await origin.focus();
+    await page.keyboard.press(binding.arrow);
+    await expect(origin).toBeFocused();
+    await page.keyboard.press(binding.key);
+    await expect(page.locator(`[data-cell="${binding.target}"]`)).toBeFocused();
+  }
 
   await page.reload();
   await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByRole('button', { name: 'Move board focus down. Current key: s' })).toBeVisible();
+  for (const binding of bindings) {
+    await expect(page.getByRole('button', { name: `Move board focus ${binding.direction}. Current key: ${binding.key}` })).toBeVisible();
+  }
 });
 
 test('@claim:active-session-length a two-player match reaches its end screen in under ten minutes of active play', async ({ browser }) => {
