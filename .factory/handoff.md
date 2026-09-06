@@ -1,5 +1,28 @@
 # Roomcode Tactics handoff
 
+## Strict review 2
+
+**PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
+
+No product code changed. A fresh strict review retested live desktop and phone
+game loops, sample isolation, real two-client play, reset/replay, privacy,
+accessibility, legal pages, designed 404s, recovery, rate limits, and all
+earlier findings. The sample and real matches reached actual winner/loser end
+screens. The clean candidate checkout at `bc1d448` passed all 21 declared
+claim commands, `npm run test:all` (6 service tests; 63 browser tests; one
+intentional phone-test desktop skip), and `npm run build`.
+
+The live footer is documentation/release revision `1e1abb1`; its clean build
+matched deployed HTML, JS, and CSS byte-for-byte. That revision changes only
+factory records from browser implementation `bc1d448`. The live room service
+reported `00afddae428a00b80338364df067348476f61718`. Fresh live Lighthouse
+scored 100/100/100/100 with 1.603 s LCP and zero CLS. The tested phone frame
+rate was 57.00 fps at 4× CPU throttle (full suite: 58.00), above the 55 fps
+claim floor.
+
+Evidence is under `/work/.evidence/roomcode-tactics-review-2/`; the report is
+`.factory/review-2.md`. There are no known product gaps in scope.
+
 ## Strict review 1
 
 **PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
