@@ -1,5 +1,37 @@
 # Roomcode Tactics handoff
 
+## Strict review 3
+
+**FAIL on 2026-09-06 UTC: four findings (three medium, one low) and zero untested public claims.**
+
+No product code or live resource changed. The fresh review completed the live
+sample on phone and desktop, a real win/loss match, and a separate real 0–0
+draw with independent clients. Sample isolation, reload, reset, clipboard,
+forget, restart-to-form, room-full recovery, privacy boundaries, accessibility,
+legal routes, designed 404s, health, isolation, and live 429/`Retry-After`
+behavior passed.
+
+From a clean checkout of implementation `bc1d448`, all 21 exact declared claim
+commands passed. `npm run test:all` passed 6 service and 63 browser tests with
+one intentional skip, and `npm run build` produced 25.61 kB JavaScript and
+12.00 kB CSS. Fresh frame-rate runs measured 60.00 and 59.00 fps under 4× CPU
+throttling. Lighthouse scored 100/100/100/100 with 1.581 s LCP and zero CLS.
+The live static files match a clean `1e1abb1` release build byte-for-byte; live
+service health reports `00afddae…`.
+
+Four findings remain. The game has only three fixed maps with label-only
+weather and one objective rule, below the required 20-level or visible-seed
+procedural content floor and the brief's weather/objective-rule variety. The
+README opening omits the intended session length and supported inputs. Keyboard
+controls cannot be remapped. The public “More markers wins; equal scores draw”
+rule has no claim entry or tagged draw test. The live draw was manually proved,
+so no claim remains untested, but repeatable claim coverage is incomplete.
+
+See `.factory/review-3.md` and
+`/work/.evidence/roomcode-tactics-review-3/`. Next work should add the required
+content depth, complete the session/input documentation, add key remapping, and
+add a deterministic tagged scoring/draw claim test before repeating the review.
+
 ## Strict review 2
 
 **PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
