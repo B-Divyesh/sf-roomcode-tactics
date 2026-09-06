@@ -1,97 +1,78 @@
 # Roomcode Tactics handoff
 
-## Repair 3
+## Independent verification 4
 
-**PASS in repair self-verification on 2026-09-06 UTC.** The four findings in
-`.factory/review-3.md` are resolved in deployed implementation
-`7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
+**FAIL on 2026-09-06 UTC: one medium finding and one untested public claim.**
 
-The implementation revision is `7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
-The later verification-documentation base is
-`497119b70f8c24c63e83b24953b145e9adab4ee9`; it changes reports and the live
-verifier only, not the deployed browser or service implementation.
+The game implementation works end to end, but the repaired claim tests do not
+fully prove their public wording. See `.factory/verification-4.md` for the full
+finding and evidence.
 
-Roomcode Tactics is a free private five-turn tactics game for two remote
-friends. A player creates a room, shares its link, and both players lock moves
-at their own pace. The first screen shows the job, audience, actions, facts,
-and playable board before scrolling on desktop and phone.
+## Reviewed versions
 
-## What changed
+- Implementation candidate: `7a37e41a5e865d05b857cae70c85b9e66a3273ab`
+- Documentation/static release: `2e802936fca37ba3400d0b68d1f0a1b2038b5677`
+- Live room-service build: `7a37e41a5e865d05b857cae70c85b9e66a3273ab`
+- Live URL: `https://roomcode-tactics.sociobot.in`
 
-- Real rooms now persist a deterministic `RCT-` map seed. The generator cycles
-  difficulty 1–5, keeps the short centre route fair, and produces new blocked
-  trails for every seed.
-- Rain, mist, and dry wind close marked trails in the actual move rules.
-  Marker rules rotate between one-point markers, a two-point centre, and
-  two-point outer markers. The board visibly shows the seed, difficulty,
-  weather rule, marker rule, and two-point markers.
-- Existing rooms with no stored seed retain their legacy map after the SQLite
-  migration, so an in-progress room is not changed by deployment.
-- Settings now has accessible, persisted board-focus key remapping. Arrow keys
-  remain the default, Enter and Space select a focused legal square, and each
-  changed key is announced to assistive technology.
-- README opening copy now states the intended 5–10 minute active session and
-  pointer, touch, and keyboard support. It also explains seeded maps, scoring,
-  and remapping.
-- The scoring rule now says higher score wins and equal scores draw. A
-  deterministic two-client 0–0 match proves the draw end screen.
-- Claims now cover generated content, remappable controls, active session
-  length, and scoring/draws. The live verifier also covers the new controls,
-  visible map rules, and draw run.
+Only the handoff, repair metadata, and live-verifier script differ between the
+implementation candidate and documentation revision. A clean `2e80293` build
+matched the live HTML, JavaScript, and CSS byte-for-byte.
 
-## Verification
+## What verification proved
 
-- From a separate clean clone of implementation `7a37e41`, after `npm ci`, all
-  25 exact commands in `.factory/claims.json` passed.
-- `npm run test:all` passed: 8 service tests and 69 browser tests. One desktop
-  execution was intentionally skipped because frame rate is measured only in
-  the phone project. The fresh phone measurement was 59.01 fps at 4× CPU
-  throttling; the isolated clean claim measured 59.50 fps.
-- `npm run build` passed and produced `dist/`: 29.06 kB JavaScript raw
-  (9.51 kB gzip) and 13.51 kB CSS raw (3.86 kB gzip).
-- Live `verify:live` used fresh desktop and phone browsers. Desktop board top
-  was 152 px and phone board top was 632.75 px. It completed the sample,
-  checked its persistent demo label, reset, and untouched real-data sentinel;
-  completed a two-client winner/loser game; completed a distinct real draw;
-  verified remapped Down-to-S focus; and verified reload, clipboard, forget,
-  third-seat feedback, fresh-room restart, opaque-pass isolation, 429 with
-  `Retry-After`, route 404, titles, and live axe checks.
-- `/opt/fleet/lib/verify-url.sh` passed on the HTTPS product: 565 ms load, no
-  browser errors, one `h1`, `lang="en"`, main landmark, complete image alt
-  coverage, and labelled buttons.
-- Live Lighthouse: performance 99, accessibility 100, best practices 100,
-  SEO 100; LCP 1.761 s, CLS 0, TBT 67 ms, 149,699 transferred bytes.
+- All 25 exact claim commands passed from a separate clean clone after
+  `npm ci`.
+- `npm run test:all` passed 8 service tests and 69 browser tests, with one
+  intentional desktop skip for the phone-only frame check.
+- `npm run build` produced `dist/`: 29.06 kB JavaScript raw / 9.51 kB gzip and
+  13.51 kB CSS raw / 3.86 kB gzip.
+- Fresh desktop and phone browsers showed the job, audience, actions, facts,
+  and board before scrolling.
+- The sample reached its win screen on desktop and phone, persisted on reload,
+  reset to turn one, kept its demo label, and did not change a real-data
+  sentinel.
+- Independent real clients reached winner and loser screens. A separate match
+  reached a 0–0 draw. Reload, clipboard, room forget, third-seat recovery, and
+  fresh-room restart passed.
+- Fifteen live rooms covered difficulty 1–5, four weather states, three marker
+  rules, unique seeds, and same-seed repeatability.
+- All four keyboard directions remapped and persisted. Pointer, explicit touch,
+  default keyboard, reduced motion, 200% reflow, 44 px targets, focus, and live
+  Axe checks passed.
+- Tenant isolation returned 403. Live limiting returned 429 with
+  `Retry-After` after forwarding-value rotation.
+- A move survived a controlled restart of only
+  `sf-roomcode-tactics-realtime--0000005`; health and authenticated reads
+  returned 200 afterward.
+- The worker URL check passed. Lighthouse scored 100 in performance,
+  accessibility, best practices, and SEO; LCP was 1.659 s and CLS was 0.
 
-Evidence is under `/work/.evidence/roomcode-tactics-repair-3/`. The catalog
-description is copied to `/work/.evidence/catalog-description.txt`.
+Evidence is under `/work/.evidence/roomcode-tactics-verify-4/`.
 
-## Deployment
+## Known gap
 
-- Static client deployed to `https://roomcode-tactics.sociobot.in` from
-  implementation `7a37e41`.
-- Product-owned service deployed to
-  `https://roomcode-tactics-realtime.sociobot.in`; `/health` reports the full
-  implementation SHA `7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
-- The service deployment preserved its durable `/data` share, existing
-  environment and probes, and one-replica bound. Its wrapper kept checking the
-  intentional API-root 404 after deployment, so it was stopped only after the
-  direct HTTPS `/health` check confirmed the new revision.
+The public claims and their exact tagged tests do not align completely:
 
-## Finding disposition
+- README says 5–10 minutes, while the manifest and test assert only under 10.
+- The seeded-map command does not assert the complete 1–5 cycle, every stated
+  weather/marker variant, or same-seed repeatability.
+- The scoring/draw command asserts only the draw half.
+- The remapping command changes only Down, while README promises four keys.
 
-| Finding | Current disposition |
-| --- | --- |
-| Review 3: fixed maps, label-only weather, one rule | Resolved by persisted seeded generator, difficulty cycle, weather closures, marker values, and service/UI regression checks. |
-| Review 3: README session and input facts | Resolved in the opening paragraph, with active-session claim coverage. |
-| Review 3: no key remapping | Resolved with persisted settings, default/remapped keyboard tests, and live test. |
-| Review 3: draw rule unclaimed | Resolved by `scoring-draw`, which completes a 0–0 match to the real draw screen. |
-| Verification 1: retention, limits, errors, 404, opaque passes | Still resolved and passed in service/browser/live checks. |
-| Verification 1: reflow, touch targets, route focus, frame rate, build label | Still resolved by current browser suite, mobile measurement, live build footer, and health revision. |
-| Verification 2: copy, forget, restart, footer claims | Still resolved and passed in the clean claim run and live verifier. |
+These outcomes worked in independent live checks, except the human five-minute
+lower-bound estimate remains untested. The claims contract is still a release
+gate, so the verdict is FAIL.
 
-## Remaining notes
+## Next steps
 
-There are no known product defects in the authorised scope. The researched
-brief defines this product as free, so there is no paid offer or billing
-registration dependency. No AI feature is appropriate for this deterministic
-room game. Offline play and background updates are not promised.
+1. Decide whether 5–10 minutes is a measured promise or an intended session
+   description. Match README, manifest wording, and a meaningful test.
+2. Expand the seeded-map tagged test to cover difficulty 1–5, the public
+   weather and marker variants, and same-seed regeneration.
+3. Make the scoring test assert both a higher-score winner and an equal-score
+   draw.
+4. Make the controls test remap and use all four directions, then rerun every
+   claim command, the full suite, build, and live verification.
+
+No product code was changed during verification 4.
