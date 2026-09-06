@@ -1,199 +1,92 @@
 # Roomcode Tactics handoff
 
-## Strict review 3
+## Repair 3
 
-**FAIL on 2026-09-06 UTC: four findings (three medium, one low) and zero untested public claims.**
+**PASS in repair self-verification on 2026-09-06 UTC.** The four findings in
+`.factory/review-3.md` are resolved in deployed implementation
+`7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
 
-No product code or live resource changed. The fresh review completed the live
-sample on phone and desktop, a real win/loss match, and a separate real 0–0
-draw with independent clients. Sample isolation, reload, reset, clipboard,
-forget, restart-to-form, room-full recovery, privacy boundaries, accessibility,
-legal routes, designed 404s, health, isolation, and live 429/`Retry-After`
-behavior passed.
+Roomcode Tactics is a free private five-turn tactics game for two remote
+friends. A player creates a room, shares its link, and both players lock moves
+at their own pace. The first screen shows the job, audience, actions, facts,
+and playable board before scrolling on desktop and phone.
 
-From a clean checkout of implementation `bc1d448`, all 21 exact declared claim
-commands passed. `npm run test:all` passed 6 service and 63 browser tests with
-one intentional skip, and `npm run build` produced 25.61 kB JavaScript and
-12.00 kB CSS. Fresh frame-rate runs measured 60.00 and 59.00 fps under 4× CPU
-throttling. Lighthouse scored 100/100/100/100 with 1.581 s LCP and zero CLS.
-The live static files match a clean `1e1abb1` release build byte-for-byte; live
-service health reports `00afddae…`.
+## What changed
 
-Four findings remain. The game has only three fixed maps with label-only
-weather and one objective rule, below the required 20-level or visible-seed
-procedural content floor and the brief's weather/objective-rule variety. The
-README opening omits the intended session length and supported inputs. Keyboard
-controls cannot be remapped. The public “More markers wins; equal scores draw”
-rule has no claim entry or tagged draw test. The live draw was manually proved,
-so no claim remains untested, but repeatable claim coverage is incomplete.
-
-See `.factory/review-3.md` and
-`/work/.evidence/roomcode-tactics-review-3/`. Next work should add the required
-content depth, complete the session/input documentation, add key remapping, and
-add a deterministic tagged scoring/draw claim test before repeating the review.
-
-## Strict review 2
-
-**PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
-
-No product code changed. A fresh strict review retested live desktop and phone
-game loops, sample isolation, real two-client play, reset/replay, privacy,
-accessibility, legal pages, designed 404s, recovery, rate limits, and all
-earlier findings. The sample and real matches reached actual winner/loser end
-screens. The clean candidate checkout at `bc1d448` passed all 21 declared
-claim commands, `npm run test:all` (6 service tests; 63 browser tests; one
-intentional phone-test desktop skip), and `npm run build`.
-
-The live footer is documentation/release revision `1e1abb1`; its clean build
-matched deployed HTML, JS, and CSS byte-for-byte. That revision changes only
-factory records from browser implementation `bc1d448`. The live room service
-reported `00afddae428a00b80338364df067348476f61718`. Fresh live Lighthouse
-scored 100/100/100/100 with 1.603 s LCP and zero CLS. The tested phone frame
-rate was 57.00 fps at 4× CPU throttle (full suite: 58.00), above the 55 fps
-claim floor.
-
-Evidence is under `/work/.evidence/roomcode-tactics-review-2/`; the report is
-`.factory/review-2.md`. There are no known product gaps in scope.
-
-## Strict review 1
-
-**PASS on 2026-09-06 UTC: zero findings and zero untested public claims.**
-
-The strict review covered browser implementation `bc1d44809599fdb4e3fb423317b7e1c9af61e067`,
-live release metadata `1e1abb188103166edb4a0a0a30d4075e9600a750`,
-service implementation `00afddae428a00b80338364df067348476f61718`, and
-documentation base `6fe01416f31df561620a5f5ad9c3ccb66e6fd1d2`.
-Only reports differ between the runtime candidate and later revisions. A clean
-release build matched the live JS and CSS byte-for-byte.
-
-Fresh desktop and phone sessions showed the job, audience, first actions, and
-game before scrolling. The deterministic sample reached its win screen,
-retained its banner, reset, and left real data unchanged. Two independent live
-clients completed five rounds and reached persistent win/loss end screens.
-Live isolation, health, 429/`Retry-After`, clipboard, forget, third-seat,
-restart-to-form, legal, and designed-404 paths passed.
-
-From a clean candidate checkout, all 21 exact claim commands passed with one
-source tag per claim. `npm run test:all` passed 6 service and 63 browser tests,
-with the intentional desktop skip of the phone-only frame test. `npm run build`
-produced 25.61 kB JavaScript and 12.00 kB CSS. The measured phone frame rate was
-59.00 fps under 4× CPU throttle. Fresh Lighthouse scored 100/100/100/100 with
-1.50 s LCP, zero CLS, and 13 ms total blocking time.
-
-All findings from verification 1 and 2 remain resolved. See
-`.factory/review-1.md` and `/work/.evidence/roomcode-tactics-review-1/`.
-No product code was changed, and no known product gap remains.
-
-## Independent verification 3
-
-**PASS on 2026-09-05 UTC: zero findings and zero untested claims.**
-
-Independent QA reviewed browser implementation
-`bc1d44809599fdb4e3fb423317b7e1c9af61e067`, service implementation
-`00afddae428a00b80338364df067348476f61718`, and documentation/release revision
-`1e1abb188103166edb4a0a0a30d4075e9600a750`. The later revision only changes
-factory documentation; it is the static build label shown live. A fresh build
-of it exactly matched the deployed JS and CSS, while the game runtime source
-remains the reviewed browser implementation.
-
-From a separate clean clone after `npm ci`, all 21 declared claim commands,
-`npm run test:all` (6 service tests, 63 browser tests, one intentional desktop
-skip for the phone-only frame test), and `npm run build` passed. The independent
-phone claim measured 60.00 fps at 4× CPU throttling. Fresh desktop and phone
-live runs completed the deterministic sample and a two-client real match,
-including reload, reset, copy, forget, restart, cross-room isolation, health,
-and live 429/`Retry-After` behavior. Axe, keyboard, motion, focus, reflow,
-routes, legal pages, expected 404s, and privacy request boundaries passed.
-Fresh live Lighthouse scored 100/100/100/100 with 1.53 s LCP, zero CLS, and
-24 ms total blocking time.
-
-See `.factory/verification-3.md` and
-`/work/.evidence/roomcode-tactics-verify-3/` for evidence. No known product
-finding remains.
-
-## Repair 2 result
-
-Repair self-verification passed on 2026-09-05 UTC. The medium finding in
-`.factory/verification-2.md` is resolved. All four public outcomes identified
-by the verifier now have entries in `.factory/claims.json` and one tagged,
-outcome-based browser test each.
-
-- Live game: `https://roomcode-tactics.sociobot.in`
-- Product room service: `https://roomcode-tactics-realtime.sociobot.in`
-- Browser implementation: `bc1d44809599fdb4e3fb423317b7e1c9af61e067`
-- Room-service implementation: `00afddae428a00b80338364df067348476f61718`
-- Verification documentation: `5ba88c8e1a4d3703ab356804c05c55c9d9e43588`
-- Job: play a private five-turn tactics match with one remote friend.
-- Audience: two friends who want no account, matchmaking, or live timing.
-- First action: create a room or open the sample beside it.
-
-The later provenance commit changes report metadata only. The deployed footer
-shows `bc1d448`, and the service health response reports its separate
-implementation SHA above.
-
-## Finding fixed
-
-| Missing claim | Repeatable outcome now proved |
-| --- | --- |
-| Copy room link | Grants clipboard permission, creates a room, copies, reads the clipboard, and compares the exact full room URL. |
-| Forget this room | Removes the matching browser entry, returns to the fresh game, and proves the authenticated shared room still returns 200. |
-| Real-match restart | Finishes a real five-turn match in two independent contexts, uses the winner action, and observes an empty room form and board preview. |
-| Footer version | Opens the terms route and compares the rendered footer value with the exact short Git revision used by the app. |
-
-The ordinary copy-result check was replaced by the stronger claim test. The
-live verifier now checks these outcomes too. Game rules, storage behavior, and
-the service API were not changed.
+- Real rooms now persist a deterministic `RCT-` map seed. The generator cycles
+  difficulty 1–5, keeps the short centre route fair, and produces new blocked
+  trails for every seed.
+- Rain, mist, and dry wind close marked trails in the actual move rules.
+  Marker rules rotate between one-point markers, a two-point centre, and
+  two-point outer markers. The board visibly shows the seed, difficulty,
+  weather rule, marker rule, and two-point markers.
+- Existing rooms with no stored seed retain their legacy map after the SQLite
+  migration, so an in-progress room is not changed by deployment.
+- Settings now has accessible, persisted board-focus key remapping. Arrow keys
+  remain the default, Enter and Space select a focused legal square, and each
+  changed key is announced to assistive technology.
+- README opening copy now states the intended 5–10 minute active session and
+  pointer, touch, and keyboard support. It also explains seeded maps, scoring,
+  and remapping.
+- The scoring rule now says higher score wins and equal scores draw. A
+  deterministic two-client 0–0 match proves the draw end screen.
+- Claims now cover generated content, remappable controls, active session
+  length, and scoring/draws. The live verifier also covers the new controls,
+  visible map rules, and draw run.
 
 ## Verification
 
-From a separate clean checkout of the browser implementation after `npm ci`:
+- From a separate clean clone of implementation `7a37e41`, after `npm ci`, all
+  25 exact commands in `.factory/claims.json` passed.
+- `npm run test:all` passed: 8 service tests and 69 browser tests. One desktop
+  execution was intentionally skipped because frame rate is measured only in
+  the phone project. The fresh phone measurement was 59.01 fps at 4× CPU
+  throttling; the isolated clean claim measured 59.50 fps.
+- `npm run build` passed and produced `dist/`: 29.06 kB JavaScript raw
+  (9.51 kB gzip) and 13.51 kB CSS raw (3.86 kB gzip).
+- Live `verify:live` used fresh desktop and phone browsers. Desktop board top
+  was 152 px and phone board top was 632.75 px. It completed the sample,
+  checked its persistent demo label, reset, and untouched real-data sentinel;
+  completed a two-client winner/loser game; completed a distinct real draw;
+  verified remapped Down-to-S focus; and verified reload, clipboard, forget,
+  third-seat feedback, fresh-room restart, opaque-pass isolation, 429 with
+  `Retry-After`, route 404, titles, and live axe checks.
+- `/opt/fleet/lib/verify-url.sh` passed on the HTTPS product: 565 ms load, no
+  browser errors, one `h1`, `lang="en"`, main landmark, complete image alt
+  coverage, and labelled buttons.
+- Live Lighthouse: performance 99, accessibility 100, best practices 100,
+  SEO 100; LCP 1.761 s, CLS 0, TBT 67 ms, 149,699 transferred bytes.
 
-- All 21 exact commands in `.factory/claims.json` passed. Every claim id has
-  exactly one source tag.
-- `npm run test:all` passed: 6 service tests and 63 browser checks passed. The
-  desktop copy of the phone-only frame test was intentionally skipped.
-- `npm run build` produced `dist/`. Initial JavaScript is 25.61 kB raw and
-  8.48 kB gzip. CSS is 12.00 kB raw and 3.56 kB gzip.
-- The clean phone run measured 60.00 fps under 4× CPU throttling against the
-  declared 55 fps floor.
-- Playwright axe found no serious or critical issue across the game, legal
-  routes, and high-contrast setting. Keyboard, dialog focus, route focus,
-  reduced motion, 200% reflow, 44 px targets, errors, offline feedback, and
-  the designed 404 all passed.
+Evidence is under `/work/.evidence/roomcode-tactics-repair-3/`. The catalog
+description is copied to `/work/.evidence/catalog-description.txt`.
 
-On the deployed HTTPS product:
+## Deployment
 
-- Fresh desktop and phone contexts showed the job, audience, both first
-  actions, three facts, and the board before scrolling.
-- The sample reached its win screen, survived reload, reset to turn one, kept
-  its demo label, and left a real-data sentinel unchanged.
-- Two independent clients completed a real match and reached winner and loser
-  screens. Copy, forget, and real restart passed against the live service.
-- A controlled restart of only revision
-  `sf-roomcode-tactics-realtime--0000004` preserved an accepted move. Health
-  returned 200 afterward with the service SHA above.
-- Cross-room access returned 403. Repeated requests returned 429 with
-  `Retry-After: 5`, and changing a supplied forwarding value remained 429.
-- The worker URL check loaded in 595 ms with no console errors. Lighthouse
-  scored 100/100/100/100; LCP was 1.59 s, CLS 0, and total blocking time 36 ms.
-- App routes and public assets returned 200. Unknown paths and `/404.html`
-  returned the intentional designed 404. Live JS and CSS hashes match the
-  deployed local build.
+- Static client deployed to `https://roomcode-tactics.sociobot.in` from
+  implementation `7a37e41`.
+- Product-owned service deployed to
+  `https://roomcode-tactics-realtime.sociobot.in`; `/health` reports the full
+  implementation SHA `7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
+- The service deployment preserved its durable `/data` share, existing
+  environment and probes, and one-replica bound. Its wrapper kept checking the
+  intentional API-root 404 after deployment, so it was stopped only after the
+  direct HTTPS `/health` check confirmed the new revision.
 
-Evidence is under `/work/.evidence/roomcode-tactics-repair-2/`. The catalog
-description was copied to `/work/.evidence/catalog-description.txt`.
+## Finding disposition
 
-## Earlier findings and remaining notes
+| Finding | Current disposition |
+| --- | --- |
+| Review 3: fixed maps, label-only weather, one rule | Resolved by persisted seeded generator, difficulty cycle, weather closures, marker values, and service/UI regression checks. |
+| Review 3: README session and input facts | Resolved in the opening paragraph, with active-session claim coverage. |
+| Review 3: no key remapping | Resolved with persisted settings, default/remapped keyboard tests, and live test. |
+| Review 3: draw rule unclaimed | Resolved by `scoring-draw`, which completes a 0–0 match to the real draw screen. |
+| Verification 1: retention, limits, errors, 404, opaque passes | Still resolved and passed in service/browser/live checks. |
+| Verification 1: reflow, touch targets, route focus, frame rate, build label | Still resolved by current browser suite, mobile measurement, live build footer, and health revision. |
+| Verification 2: copy, forget, restart, footer claims | Still resolved and passed in the clean claim run and live verifier. |
 
-All 11 findings from `.factory/verification-1.md` remain resolved: expiry
-deletion, request-limit identity, visible recovery errors, 404 routing, opaque
-passes, 200% reflow, touch targets, route focus, claim coverage, frame-rate
-measurement, and build provenance all passed their current regression or live
-check. See `.factory/verification-repair-2.md` for individual disposition.
+## Remaining notes
 
-No known product defect remains in the authorised scope. The current product
-is free, as specified by the brief; there is no registered paid offer or
-billing metadata. No AI feature is appropriate for this deterministic game.
-The room service was restarted for persistence verification but was not
-redeployed or reconfigured. Its durable `/data` SQLite mount and one-replica
-bound remain in use.
+There are no known product defects in the authorised scope. The researched
+brief defines this product as free, so there is no paid offer or billing
+registration dependency. No AI feature is appropriate for this deterministic
+room game. Offline play and background updates are not promised.
