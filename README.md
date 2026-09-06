@@ -1,7 +1,9 @@
 # Roomcode Tactics
 
 Plan five simultaneous tactics turns with a friend in a private room link.
-Roomcode Tactics is free for two remote friends. A match uses a 7×7 map,
+Roomcode Tactics is free for two remote friends. When both friends are ready,
+a five-turn match takes 5–10 minutes of active play. A room stays open for 24
+hours when you play apart. Use a pointer, touch, or keyboard on a 7×7 map with
 five decisions each, names only, and no account. Create a room, share its link,
 then both players choose their moves whenever they are ready.
 
@@ -78,5 +80,17 @@ or long-lived worlds. Read `/privacy` and `/terms` for player-facing details.
 ## Match and performance
 
 A full match ends after five simultaneous turns. Each match uses a 7×7 map.
+Real rooms use a deterministic generated map with its seed shown on the board.
+The generator cycles through difficulty 1–5 by adding blocked trails. Rain,
+mist, and wind close marked trails, so weather changes legal moves. Marker
+rules also vary: the centre or outer markers can be worth two points. The
+higher score wins after turn five; equal scores draw.
+
+Board cells work with a pointer or touch. Keyboard players move board focus
+with the arrow keys by default, choose a focused legal square with Enter or
+Space, and can remap the four focus keys in Settings. The active-play session
+length is checked by the `active-session-length` claim in
+`.factory/claims.json`.
+
 Board resolution targets 60 fps and averages at least 55 fps in the tested
 mid-range phone profile. The exact test is listed in `.factory/claims.json`.

@@ -56,6 +56,17 @@ No stock imagery, third-party fonts, copied maps, or external art is loaded.
 
 ## Board content
 
-Three rotation-safe maps vary blocked forest squares, weather labels, and cyan
-objective positions. A complete match has five simultaneous turns. The sample
-always uses Cypress Pass so tests and first-time play are deterministic.
+Real rooms use a deterministic generator. Every room stores one visible
+`RCT-` map seed, so a reload or service restart recreates the same seven-by-seven
+board. The seed sequence cycles through difficulty 1–5: each level adds one
+ordinary blocked trail, then repeats with a new seeded layout. The protected
+centre corridor keeps the short five-turn match fair while the outer routes
+become progressively tighter.
+
+Weather is a game rule, not a label. Rain, mist, and dry wind close two marked
+trails, and the service rejects a move onto those weather closures. Objective
+rules also rotate: all markers can be worth one point, the centre can be worth
+two, or the two outer markers can be worth two. The board shows each rule and
+the value of every two-point marker. Higher score wins after turn five; equal
+scores draw. The sample always uses Cypress Pass so tests and first-time play
+remain deterministic.

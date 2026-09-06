@@ -2,15 +2,21 @@ import './style.css';
 
 type Coordinate = { x: number; y: number };
 type PlayerNumber = 1 | 2;
-type MapDefinition = { id: string; weather: string; blocked: Coordinate[]; objectives: Coordinate[] };
+type Objective = Coordinate & { value: number };
+type MapDefinition = {
+  id: string; seed: string; difficulty: number; weather: string; weatherRule: string; objectiveRule: string;
+  blocked: Coordinate[]; weatherBlocked: Coordinate[]; objectives: Objective[];
+};
 type RoomState = {
   roomCode: string; map: MapDefinition; round: number; maxRounds: number; status: 'lobby' | 'active' | 'completed'; expiresAt: number;
   players: { player: PlayerNumber; name: string; position: Coordinate; score: number }[];
-  yourPlayer: PlayerNumber; yourMoveLocked: boolean; objectives: { x: number; y: number; owner: PlayerNumber | null }[];
+  yourPlayer: PlayerNumber; yourMoveLocked: boolean; objectives: { x: number; y: number; value: number; owner: PlayerNumber | null }[];
   lastResolution: string | null; winner: 'you' | 'opponent' | 'draw' | null;
 };
 
-type Settings = { quietResolution: boolean; highContrast: boolean };
+type Direction = 'up' | 'down' | 'left' | 'right';
+type KeyBindings = Record<Direction, string>;
+type Settings = { quietResolution: boolean; highContrast: boolean; keyBindings: KeyBindings };
 type Session = { token: string; name: string; expiresAt?: number };
 type NoticeKind = 'status' | 'error';
 
@@ -21,11 +27,13 @@ const BUILD_ID = import.meta.env.VITE_BUILD_SHA || 'dev';
 const DEMO_KEY = 'demo:roomcode-tactics:sample';
 const REAL_SETTINGS_KEY = 'rct:settings';
 const DEMO_SETTINGS_KEY = 'demo:roomcode-tactics:settings';
+const DEFAULT_KEY_BINDINGS: KeyBindings = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
 
 const demoMap: MapDefinition = {
-  id: 'cypress-pass', weather: 'Clear paths',
+  id: 'cypress-pass', seed: 'CYPRESS-01', difficulty: 1, weather: 'Clear',
+  weatherRule: 'Clear weather keeps the marked trails open.', objectiveRule: 'Each marker is worth 1 point.', weatherBlocked: [],
   blocked: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 6, y: 1 }, { x: 0, y: 5 }, { x: 6, y: 5 }],
-  objectives: [{ x: 3, y: 3 }, { x: 1, y: 3 }, { x: 5, y: 2 }],
+  objectives: [{ x: 3, y: 3, value: 1 }, { x: 1, y: 3, value: 1 }, { x: 5, y: 2, value: 1 }],
 };
 
 function demoSeed(): RoomState {
@@ -49,6 +57,7 @@ let settings = readSettings();
 let lastResolutionSeen = '';
 let lastRenderedPath = location.pathname;
 let draftName = '';
+let bindingCapture: Direction | null = null;
 
 function isDemo(): boolean { return location.pathname === '/demo' || new URLSearchParams(location.search).get('demo') === '1'; }
 function roomCodeFromUrl(): string | null {
@@ -86,7 +95,14 @@ function purgeExpiredSessions(): void {
     if (!session || (expiry !== null && expiry <= Date.now())) localStorage.removeItem(key);
   }
 }
-function readSettings(): Settings { return { quietResolution: false, highContrast: false, ...(safeParse<Settings>(localStorage.getItem(isDemo() ? DEMO_SETTINGS_KEY : REAL_SETTINGS_KEY)) || {}) }; }
+function readSettings(): Settings {
+  const saved = safeParse<Partial<Settings>>(localStorage.getItem(isDemo() ? DEMO_SETTINGS_KEY : REAL_SETTINGS_KEY)) || {};
+  return {
+    quietResolution: Boolean(saved.quietResolution),
+    highContrast: Boolean(saved.highContrast),
+    keyBindings: { ...DEFAULT_KEY_BINDINGS, ...(saved.keyBindings || {}) },
+  };
+}
 function persistSettings(): void {
   localStorage.setItem(isDemo() ? DEMO_SETTINGS_KEY : REAL_SETTINGS_KEY, JSON.stringify(settings));
   document.documentElement.classList.toggle('high-contrast', settings.highContrast);
@@ -137,8 +153,16 @@ function playerAt(state: RoomState, cell: Coordinate): PlayerNumber | null {
   return state.players.find((player) => player.position.x === cell.x && player.position.y === cell.y)?.player || null;
 }
 
-function objectiveAt(state: RoomState, cell: Coordinate): PlayerNumber | null | undefined {
-  return state.objectives.find((objective) => objective.x === cell.x && objective.y === cell.y)?.owner;
+function objectiveAt(state: RoomState, cell: Coordinate): { x: number; y: number; value: number; owner: PlayerNumber | null } | undefined {
+  return state.objectives.find((objective) => objective.x === cell.x && objective.y === cell.y);
+}
+
+function weatherBlocks(state: RoomState, cell: Coordinate): boolean {
+  return state.map.weatherBlocked.some((item) => item.x === cell.x && item.y === cell.y);
+}
+
+function mapRuleMarkup(state: RoomState): string {
+  return `<dl class="map-rules"><div><dt>Map seed</dt><dd>${escapeHtml(state.map.seed)}</dd></div><div><dt>Difficulty</dt><dd>${state.map.difficulty} of 5</dd></div><div><dt>Weather</dt><dd>${escapeHtml(state.map.weather)} — ${escapeHtml(state.map.weatherRule)}</dd></div><div><dt>Marker rule</dt><dd>${escapeHtml(state.map.objectiveRule)}</dd></div></dl>`;
 }
 
 function boardMarkup(state: RoomState, interactive: boolean): string {
@@ -149,17 +173,18 @@ function boardMarkup(state: RoomState, interactive: boolean): string {
       const blocked = state.map.blocked.some((item) => item.x === x && item.y === y);
       const player = playerAt(state, cell);
       const objective = objectiveAt(state, cell);
+      const weatherBlocked = weatherBlocks(state, cell);
       const canMove = interactive && moveIsLegal(state, cell) && state.status === 'active' && !state.yourMoveLocked;
       const selectedCell = selected?.x === x && selected?.y === y;
       const description = [
         `Row ${y + 1}, column ${x + 1}`,
-        blocked ? 'blocked forest' : 'open ground',
-        objective !== undefined ? objective ? `marker held by ${objective === 1 ? 'north' : 'south'}` : 'unclaimed marker' : '',
+        blocked ? weatherBlocked ? `closed by ${state.map.weather.toLowerCase()}` : 'blocked forest' : 'open ground',
+        objective ? objective.owner ? `${objective.value}-point marker held by ${objective.owner === 1 ? 'north' : 'south'}` : `unclaimed ${objective.value}-point marker` : '',
         player ? `${state.players.find((item) => item.player === player)?.name}'s scout` : '',
         canMove ? 'available move' : '',
       ].filter(Boolean).join(', ');
-      cells.push(`<button class="map-cell ${blocked ? 'is-forest' : 'is-sand'} ${canMove ? 'can-move' : ''} ${selectedCell ? 'is-selected' : ''} ${player ? `has-player player-${player}` : ''}" type="button" data-cell="${x}-${y}" aria-label="${escapeHtml(description)}" ${canMove ? '' : 'disabled'}>
-        ${objective !== undefined ? `<span class="objective ${objective ? `claimed-by-${objective}` : ''}" aria-hidden="true"></span>` : ''}
+      cells.push(`<button class="map-cell ${blocked ? 'is-forest' : 'is-sand'} ${weatherBlocked ? 'is-weather-closed' : ''} ${canMove ? 'can-move' : ''} ${selectedCell ? 'is-selected' : ''} ${player ? `has-player player-${player}` : ''}" type="button" data-cell="${x}-${y}" aria-label="${escapeHtml(description)}" ${canMove ? '' : 'disabled'}>
+        ${objective ? `<span class="objective ${objective.owner ? `claimed-by-${objective.owner}` : ''} ${objective.value > 1 ? 'is-double' : ''}" aria-hidden="true">${objective.value > 1 ? objective.value : ''}</span>` : ''}
         ${player ? `<span class="scout" aria-hidden="true">${player === 1 ? 'N' : 'S'}</span>` : ''}
       </button>`);
     }
@@ -200,9 +225,10 @@ function homeContent(): string {
         ${noticeMarkup()}
       </div>
       <section class="game-board-panel" aria-labelledby="board-title"><img class="field-texture" src="/folded-map.webp" srcset="/folded-map-512.webp 512w, /folded-map.webp 1024w" sizes="(max-width: 760px) 92vw, 620px" width="1024" height="1024" alt="" decoding="async" />
-        <div class="board-meta"><div><p class="eyebrow">${hasRoom ? escapeHtml(state.roomCode) : 'Board preview'}</p><h2 id="board-title">${hasRoom ? `${prettyMap(state.map.id)} · ${state.map.weather}` : 'Seven by seven folded map'}</h2></div><p>${hasRoom ? state.status === 'completed' ? 'Match complete' : `Turn ${state.round} of ${state.maxRounds}` : 'Markers decide the match'}</p></div>
+        <div class="board-meta"><div><p class="eyebrow">${hasRoom ? escapeHtml(state.roomCode) : 'Board preview'}</p><h2 id="board-title">${hasRoom ? `${prettyMap(state.map.id)} · ${state.map.weather}` : 'Seven by seven folded map'}</h2></div><p>${hasRoom ? state.status === 'completed' ? 'Match complete' : `Turn ${state.round} of ${state.maxRounds}` : 'Highest score wins'}</p></div>
         ${boardMarkup(state, hasRoom && state.status === 'active')}
-        <div class="board-legend" aria-label="Map key"><span><i class="legend-scout north"></i>North scout</span><span><i class="legend-scout south"></i>South scout</span><span><i class="legend-marker"></i>Marker</span><span><i class="legend-forest"></i>Blocked forest</span></div>
+        <div class="board-legend" aria-label="Map key"><span><i class="legend-scout north"></i>North scout</span><span><i class="legend-scout south"></i>South scout</span><span><i class="legend-marker"></i>1-point marker</span><span><i class="legend-marker double"></i>2-point marker</span><span><i class="legend-forest"></i>Blocked trail</span></div>
+        ${mapRuleMarkup(state)}
       </section>
     </section>
     ${hasRoom ? playPanel(state) : waitingToJoin ? joinPanel(code!) : createPanel()}
@@ -252,7 +278,7 @@ function playPanel(state: RoomState): string {
 function endMessage(state: RoomState): string { return state.winner === 'you' ? 'You won' : state.winner === 'opponent' ? 'You lost' : 'The match is a draw'; }
 
 function howPanel(): string {
-  return `<section class="how-section" aria-labelledby="how-title"><h2 id="how-title">How to finish this match</h2><ol><li><strong>Lock one move each turn.</strong> Both players lock a move before the board resolves.</li><li><strong>Secure markers.</strong> Step onto an unclaimed cyan marker.</li><li><strong>Compare scores after turn five.</strong> More markers wins; equal scores draw.</li></ol></section>`;
+  return `<section class="how-section" aria-labelledby="how-title"><h2 id="how-title">How to finish this match</h2><ol><li><strong>Lock one move each turn.</strong> Both players lock a move before the board resolves.</li><li><strong>Secure markers.</strong> Step onto an unclaimed marker and follow its point value.</li><li><strong>Compare scores after turn five.</strong> Higher score wins. Equal scores draw.</li></ol></section>`;
 }
 
 function privacyPanel(): string {
@@ -265,7 +291,7 @@ function demoContent(): string {
     <section class="game-layout demo-layout" aria-labelledby="page-title"><div class="game-intro"><p class="eyebrow">Sample match</p><h1 id="page-title" tabindex="-1">Plan five sample turns</h1><p class="lede">Try the full board as Mira against Teo. This sample stays separate from real rooms.</p>
       <div class="first-actions"><button class="button button-primary" data-action="submit-demo" type="button" ${!selected || state.status === 'completed' ? 'disabled' : ''}>${state.status === 'completed' ? 'Sample complete' : 'Resolve sample turn'}</button><button class="button button-secondary" data-action="reset-demo" type="button">Reset demo</button></div>
       <p class="action-note">Choose Mira’s square. Teo holds position so you can see each resolution.</p><ul class="facts"><li>Sample names: Mira and Teo</li><li>Separate demo storage</li><li>No real room created</li></ul>${noticeMarkup()}</div>
-      <section class="game-board-panel" aria-labelledby="board-title"><img class="field-texture" src="/folded-map.webp" srcset="/folded-map-512.webp 512w, /folded-map.webp 1024w" sizes="(max-width: 760px) 92vw, 620px" width="1024" height="1024" alt="" decoding="async" /><div class="board-meta"><div><p class="eyebrow">Sample room</p><h2 id="board-title">Cypress Pass · Clear paths</h2></div><p>${state.status === 'completed' ? 'Sample complete' : `Turn ${state.round} of 5`}</p></div>${boardMarkup(state, state.status === 'active')}<div class="board-legend" aria-label="Map key"><span><i class="legend-scout north"></i>Mira</span><span><i class="legend-scout south"></i>Teo</span><span><i class="legend-marker"></i>Marker</span><span><i class="legend-forest"></i>Blocked forest</span></div></section></section>
+      <section class="game-board-panel" aria-labelledby="board-title"><img class="field-texture" src="/folded-map.webp" srcset="/folded-map-512.webp 512w, /folded-map.webp 1024w" sizes="(max-width: 760px) 92vw, 620px" width="1024" height="1024" alt="" decoding="async" /><div class="board-meta"><div><p class="eyebrow">Sample room</p><h2 id="board-title">Cypress Pass · Clear</h2></div><p>${state.status === 'completed' ? 'Sample complete' : `Turn ${state.round} of 5`}</p></div>${boardMarkup(state, state.status === 'active')}<div class="board-legend" aria-label="Map key"><span><i class="legend-scout north"></i>Mira</span><span><i class="legend-scout south"></i>Teo</span><span><i class="legend-marker"></i>1-point marker</span><span><i class="legend-forest"></i>Blocked trail</span></div>${mapRuleMarkup(state)}</section></section>
     ${playPanel(state)}${howPanel()}</main>`;
 }
 
@@ -285,8 +311,17 @@ function footer(): string {
   return `<footer class="site-footer"><p>A five-turn room-code tactics game for two friends.</p><p><a href="/privacy">Privacy</a><a href="/terms">Terms</a><span>Built by Param Factory</span></p><p>Build <span data-build>${escapeHtml(BUILD_ID)}</span> · Generated map texture.</p></footer>`;
 }
 
+function keyLabel(key: string): string {
+  return ({ ArrowUp: 'Up arrow', ArrowDown: 'Down arrow', ArrowLeft: 'Left arrow', ArrowRight: 'Right arrow', ' ': 'Space' } as Record<string, string>)[key] || key;
+}
+
+function directionLabel(direction: Direction): string {
+  return ({ up: 'up', down: 'down', left: 'left', right: 'right' } as Record<Direction, string>)[direction];
+}
+
 function settingsDialog(): string {
-  return `<dialog id="settings-dialog" aria-labelledby="settings-title"><form method="dialog"><div class="dialog-head"><div><p class="eyebrow">Controls</p><h2 id="settings-title">Game settings</h2></div><button class="icon-button" value="close" aria-label="Close settings">×</button></div><label class="switch-row"><input id="quiet-setting" type="checkbox" ${settings.quietResolution ? 'checked' : ''}/><span>Use still resolution effects</span></label><label class="switch-row"><input id="contrast-setting" type="checkbox" ${settings.highContrast ? 'checked' : ''}/><span>Use high-contrast colors</span></label><p>These settings stay only in this browser${isDemo() ? ' for the sample' : ''}.</p></form></dialog>`;
+  const keyButtons = (Object.keys(DEFAULT_KEY_BINDINGS) as Direction[]).map((direction) => `<button class="key-binding" type="button" data-key-binding="${direction}" aria-label="Move board focus ${directionLabel(direction)}. Current key: ${escapeHtml(keyLabel(settings.keyBindings[direction]))}"><span>Move ${directionLabel(direction)}</span><strong>${escapeHtml(keyLabel(settings.keyBindings[direction]))}</strong></button>`).join('');
+  return `<dialog id="settings-dialog" aria-labelledby="settings-title"><form method="dialog"><div class="dialog-head"><div><p class="eyebrow">Controls</p><h2 id="settings-title">Game settings</h2></div><button class="icon-button" value="close" aria-label="Close settings">×</button></div><fieldset class="key-bindings"><legend>Board focus keys</legend><p>Choose an action, then press its new key. Enter and Space still select a focused legal square.</p>${keyButtons}<button class="text-button" type="button" data-action="reset-keys">Reset board keys</button><p id="key-binding-status" class="sr-only" aria-live="polite"></p></fieldset><label class="switch-row"><input id="quiet-setting" type="checkbox" ${settings.quietResolution ? 'checked' : ''}/><span>Use still resolution effects</span></label><label class="switch-row"><input id="contrast-setting" type="checkbox" ${settings.highContrast ? 'checked' : ''}/><span>Use high-contrast colors</span></label><p>These settings stay only in this browser${isDemo() ? ' for the sample' : ''}.</p></form></dialog>`;
 }
 
 function render(): void {
@@ -365,7 +400,7 @@ function updateDemo(target: Coordinate): void {
   const conflict = target.x === p2.position.x && target.y === p2.position.y;
   const newPosition = conflict ? p1.position : target;
   const objectives = state.objectives.map((objective) => !objective.owner && objective.x === newPosition.x && objective.y === newPosition.y ? { ...objective, owner: 1 as PlayerNumber } : objective);
-  const score = objectives.filter((objective) => objective.owner === 1).length;
+  const score = objectives.filter((objective) => objective.owner === 1).reduce((total, objective) => total + objective.value, 0);
   const complete = state.round === 5;
   roomState = {
     ...state,
@@ -373,7 +408,7 @@ function updateDemo(target: Coordinate): void {
     status: complete ? 'completed' : 'active',
     players: [{ ...p1, position: newPosition, score }, p2], objectives,
     winner: complete ? score > p2.score ? 'you' : score < p2.score ? 'opponent' : 'draw' : null,
-    lastResolution: conflict ? 'Mira and Teo chose the same square, so neither scout moved.' : objectives.some((objective) => objective.owner === 1 && objective.x === newPosition.x && objective.y === newPosition.y) ? 'Mira secured a cyan marker.' : 'Both sample plans resolved without securing a marker.',
+    lastResolution: conflict ? 'Mira and Teo chose the same square, so neither scout moved.' : objectives.some((objective) => objective.owner === 1 && objective.x === newPosition.x && objective.y === newPosition.y) ? 'Mira secured a marker.' : 'Both sample plans resolved without securing a marker.',
   };
   localStorage.setItem(DEMO_KEY, JSON.stringify(roomState)); selected = null; rerender(roomState.status === 'completed' ? 'Sample match complete.' : roomState.lastResolution || 'Sample turn resolved.');
 }
@@ -407,6 +442,48 @@ function chooseCell(button: HTMLButtonElement): void {
   selected = { x, y }; rerender(`Selected row ${y + 1}, column ${x + 1}.`);
 }
 
+function directionForKey(key: string): Direction | null {
+  return (Object.entries(settings.keyBindings).find(([, binding]) => binding === key)?.[0] as Direction | undefined) || null;
+}
+
+function refreshKeyBindingButton(button: HTMLButtonElement, direction: Direction): void {
+  const label = keyLabel(settings.keyBindings[direction]);
+  button.setAttribute('aria-label', `Move board focus ${directionLabel(direction)}. Current key: ${label}`);
+  button.innerHTML = `<span>Move ${directionLabel(direction)}</span><strong>${escapeHtml(label)}</strong>`;
+}
+
+function beginBindingCapture(button: HTMLButtonElement): void {
+  const direction = button.dataset.keyBinding as Direction | undefined;
+  if (!direction) return;
+  bindingCapture = direction;
+  button.setAttribute('aria-label', `Move board focus ${directionLabel(direction)}. Press a new key.`);
+  button.innerHTML = `<span>Move ${directionLabel(direction)}</span><strong>Press a key</strong>`;
+  document.querySelector('#key-binding-status')!.textContent = `Press a new key for move ${directionLabel(direction)}.`;
+  button.focus();
+}
+
+function captureBinding(event: KeyboardEvent, button: HTMLButtonElement): void {
+  const direction = button.dataset.keyBinding as Direction | undefined;
+  if (!direction || bindingCapture !== direction) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    bindingCapture = null;
+    refreshKeyBindingButton(button, direction);
+    document.querySelector('#key-binding-status')!.textContent = 'Key change cancelled.';
+    return;
+  }
+  if (['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(event.key)) return;
+  event.preventDefault();
+  const priorKey = settings.keyBindings[direction];
+  const usedBy = (Object.keys(settings.keyBindings) as Direction[]).find((item) => item !== direction && settings.keyBindings[item] === event.key);
+  if (usedBy) settings.keyBindings[usedBy] = priorKey;
+  settings.keyBindings[direction] = event.key;
+  bindingCapture = null;
+  persistSettings();
+  document.querySelectorAll<HTMLButtonElement>('[data-key-binding]').forEach((item) => refreshKeyBindingButton(item, item.dataset.keyBinding as Direction));
+  document.querySelector('#key-binding-status')!.textContent = `Move ${directionLabel(direction)} now uses ${keyLabel(event.key)}.`;
+}
+
 function wire(): void {
   document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]').forEach((link) => link.addEventListener('click', (event) => {
     event.preventDefault(); navigate(link.getAttribute('href') || '/');
@@ -427,10 +504,22 @@ function wire(): void {
   document.querySelector('[data-action="settings"]')?.addEventListener('click', () => dialog?.showModal());
   document.querySelector<HTMLInputElement>('#quiet-setting')?.addEventListener('change', (event) => { settings.quietResolution = (event.currentTarget as HTMLInputElement).checked; persistSettings(); });
   document.querySelector<HTMLInputElement>('#contrast-setting')?.addEventListener('change', (event) => { settings.highContrast = (event.currentTarget as HTMLInputElement).checked; persistSettings(); });
+  document.querySelectorAll<HTMLButtonElement>('[data-key-binding]').forEach((button) => {
+    button.addEventListener('click', () => beginBindingCapture(button));
+    button.addEventListener('keydown', (event) => captureBinding(event, button));
+  });
+  document.querySelector('[data-action="reset-keys"]')?.addEventListener('click', () => {
+    settings.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+    bindingCapture = null;
+    persistSettings();
+    document.querySelectorAll<HTMLButtonElement>('[data-key-binding]').forEach((button) => refreshKeyBindingButton(button, button.dataset.keyBinding as Direction));
+    document.querySelector('#key-binding-status')!.textContent = 'Board focus keys reset to arrow keys.';
+  });
   document.querySelectorAll<HTMLButtonElement>('.map-cell').forEach((cell) => cell.addEventListener('keydown', (event) => {
     const [x, y] = (cell.dataset.cell || '').split('-').map(Number); let next: Coordinate | null = null;
-    if (event.key === 'ArrowLeft') next = { x: x - 1, y }; if (event.key === 'ArrowRight') next = { x: x + 1, y };
-    if (event.key === 'ArrowUp') next = { x, y: y - 1 }; if (event.key === 'ArrowDown') next = { x, y: y + 1 };
+    const direction = directionForKey(event.key);
+    if (direction === 'left') next = { x: x - 1, y }; if (direction === 'right') next = { x: x + 1, y };
+    if (direction === 'up') next = { x, y: y - 1 }; if (direction === 'down') next = { x, y: y + 1 };
     if (next && next.x >= 0 && next.x < 7 && next.y >= 0 && next.y < 7) { event.preventDefault(); document.querySelector<HTMLButtonElement>(`[data-cell="${next.x}-${next.y}"]`)?.focus(); }
   }));
 }

@@ -86,6 +86,69 @@ test('two independent players can finish five simultaneous turns', async () => {
   } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
 });
 
+test('@claim:seeded-map-content new rooms generate a persisted seed with weather and marker rules that change play', async () => {
+  const { dir, service } = await sandbox();
+  try {
+    const first = await create(service, 'Mira');
+    const second = await create(service, 'Lina', '198.51.100.22');
+    const firstState = await request(service, `/v1/rooms/${first.roomCode}`, { headers: { Authorization: `Bearer ${first.token}` } });
+    const secondState = await request(service, `/v1/rooms/${second.roomCode}`, { headers: { Authorization: `Bearer ${second.token}` } });
+    const firstMap = (await firstState.json() as { map: { seed: string; difficulty: number } }).map;
+    const secondBody = await secondState.json() as { map: { seed: string; difficulty: number; weatherBlocked: Coordinate[]; objectives: { x: number; y: number; value: number }[] } };
+    assert.notEqual(firstMap.seed, secondBody.map.seed, 'each new room exposes its own repeatable map seed');
+    assert.equal(secondBody.map.difficulty, firstMap.difficulty + 1, 'the generated sequence advances its displayed obstacle level');
+    assert.ok(secondBody.map.weatherBlocked.length > 0, 'the second generated weather closes marked trails');
+    assert.ok(secondBody.map.objectives.some((objective) => objective.value === 2), 'the second generated marker rule includes a two-point marker');
+
+    const secondPlayer = await joinRoom(service, second.roomCode, 'Teo');
+    const closedTrail = secondBody.map.weatherBlocked.find((cell) => Math.abs(cell.x - 3) + Math.abs(cell.y - 6) === 1);
+    assert.ok(closedTrail, 'the generated weather exposes a closed trail beside the north scout');
+    const blockedMove = await request(service, `/v1/rooms/${second.roomCode}/moves`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${second.token}` },
+      body: JSON.stringify({ target: closedTrail, move_id: 'weather_closed_01' }),
+    });
+    assert.equal(blockedMove.status, 400, 'a weather-closed trail rejects an otherwise adjacent move');
+
+    let resolved: { players: { player: number; score: number }[] } | null = null;
+    for (const [index, target] of [{ x: 3, y: 5 }, { x: 3, y: 4 }, { x: 3, y: 3 }].entries()) {
+      const north = await request(service, `/v1/rooms/${second.roomCode}/moves`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${second.token}` }, body: JSON.stringify({ target, move_id: `score_north_${index}` }),
+      });
+      assert.equal(north.status, 200);
+      const south = await request(service, `/v1/rooms/${second.roomCode}/moves`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secondPlayer.token}` }, body: JSON.stringify({ target: { x: 3, y: 0 }, move_id: `score_south_${index}` }),
+      });
+      assert.equal(south.status, 200);
+      resolved = await south.json() as typeof resolved;
+    }
+    assert.equal(resolved?.players.find((player) => player.player === 1)?.score, 2, 'securing the generated two-point centre marker adds two points');
+  } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('@claim:scoring-draw equal final scores end the match as a draw', async () => {
+  const { dir, service } = await sandbox();
+  try {
+    const first = await create(service, 'Mira');
+    const second = await joinRoom(service, first.roomCode, 'Teo');
+    let final: { status: string; winner: string; players: { score: number }[] } | null = null;
+    for (let round = 0; round < 5; round += 1) {
+      const north = await request(service, `/v1/rooms/${first.roomCode}/moves`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${first.token}` }, body: JSON.stringify({ target: { x: 3, y: 6 }, move_id: `draw_north_${round}` }),
+      });
+      assert.equal(north.status, 200);
+      const south = await request(service, `/v1/rooms/${first.roomCode}/moves`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${second.token}` }, body: JSON.stringify({ target: { x: 3, y: 0 }, move_id: `draw_south_${round}` }),
+      });
+      assert.equal(south.status, 200);
+      final = await south.json() as typeof final;
+    }
+    assert.equal(final?.status, 'completed');
+    assert.equal(final?.winner, 'draw');
+    assert.deepEqual(final?.players.map((player) => player.score), [0, 0]);
+  } finally { service.store.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
 test('invalid, boundary, origin, and missing-pass requests return useful errors', async () => {
   const { dir, service } = await sandbox();
   try {

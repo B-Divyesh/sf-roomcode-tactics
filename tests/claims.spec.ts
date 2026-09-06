@@ -54,22 +54,22 @@ test('@claim:request-destinations real play contacts only the game and its room 
   await secondContext.close();
 });
 
-test('@claim:seven-by-seven-map the sample and rotating real maps use seven-by-seven boards', async ({ browser, page }) => {
+test('@claim:seven-by-seven-map the sample and generated real maps use seven-by-seven boards', async ({ browser, page }) => {
   await page.goto('/demo');
   const board = page.getByRole('group', { name: 'Seven by seven tactical map' });
   await expect(board.locator('[data-cell]')).toHaveCount(49);
   const columns = await page.locator('.map-grid').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' '));
   expect(columns).toHaveLength(7);
-  const mapNames = new Set<string>();
+  const mapSeeds = new Set<string>();
   for (let index = 0; index < 3; index += 1) {
     const context = await browser.newContext();
     const roomPage = await context.newPage();
     await createRoom(roomPage, `Map player ${index}`);
     await expect(roomPage.getByRole('group', { name: 'Seven by seven tactical map' }).locator('[data-cell]')).toHaveCount(49);
-    mapNames.add((await roomPage.locator('#board-title').textContent())!.split(' · ')[0]);
+    mapSeeds.add((await roomPage.locator('.map-rules dd').first().textContent())!);
     await context.close();
   }
-  expect(mapNames).toEqual(new Set(['Cypress Pass', 'Sandbar Crossing', 'Pine Fork']));
+  expect(mapSeeds.size).toBe(3);
 });
 
 test('@claim:restart-demo resetting the sample starts it again', async ({ page }) => {
@@ -99,6 +99,48 @@ test('@claim:settings-persist settings stay in this browser', async ({ page }) =
   await expect(page.getByLabel('Use still resolution effects')).toBeChecked();
   await expect(page.getByLabel('Use high-contrast colors')).toBeChecked();
   expect(requests.every((url) => new URL(url).origin === 'http://127.0.0.1:5173')).toBe(true);
+});
+
+test('@claim:remappable-controls board focus keys work by default, can change, and persist', async ({ page }) => {
+  await page.goto('/demo');
+  const origin = page.locator('[data-cell="3-5"]');
+  const downward = page.locator('[data-cell="3-6"]');
+  await origin.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(downward).toBeFocused();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const downBinding = page.locator('[data-key-binding="down"]');
+  await downBinding.click();
+  await page.keyboard.press('s');
+  await expect(downBinding).toHaveAccessibleName('Move board focus down. Current key: s');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+
+  await origin.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(origin).toBeFocused();
+  await page.keyboard.press('s');
+  await expect(downward).toBeFocused();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('button', { name: 'Move board focus down. Current key: s' })).toBeVisible();
+});
+
+test('@claim:active-session-length a two-player match reaches its end screen in under ten minutes of active play', async ({ browser }) => {
+  const firstContext = await browser.newContext();
+  const secondContext = await browser.newContext();
+  const first = await firstContext.newPage();
+  const second = await secondContext.newPage();
+  const started = performance.now();
+  const roomUrl = await createRoom(first, 'Mira');
+  await joinRoom(second, roomUrl, 'Teo');
+  await finishMatch(first, second);
+  const elapsedMs = performance.now() - started;
+  await expect(first.getByRole('heading', { name: 'You won', exact: true })).toBeVisible();
+  expect(elapsedMs).toBeLessThan(10 * 60 * 1_000);
+  await firstContext.close();
+  await secondContext.close();
 });
 
 test('@claim:refresh-rejoin reloading reconnects to your saved room', async ({ page }) => {

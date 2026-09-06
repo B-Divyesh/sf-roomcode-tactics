@@ -5,37 +5,128 @@ import { DatabaseSync } from 'node:sqlite';
 
 export type Coordinate = { x: number; y: number };
 export type PlayerNumber = 1 | 2;
+export type ObjectiveDefinition = Coordinate & { value: number };
 
 export type MapDefinition = {
   id: string;
+  seed: string;
+  difficulty: number;
   weather: string;
+  weatherRule: string;
+  objectiveRule: string;
   blocked: Coordinate[];
-  objectives: Coordinate[];
+  weatherBlocked: Coordinate[];
+  objectives: ObjectiveDefinition[];
 };
 
-export const MAPS: MapDefinition[] = [
+const LEGACY_MAPS: MapDefinition[] = [
   {
     id: 'cypress-pass',
-    weather: 'Clear paths',
+    seed: 'CYPRESS-01',
+    difficulty: 1,
+    weather: 'Clear',
+    weatherRule: 'Clear weather keeps the marked trails open.',
+    objectiveRule: 'Each marker is worth 1 point.',
     blocked: [{ x: 0, y: 1 }, { x: 1, y: 1 }, { x: 5, y: 1 }, { x: 6, y: 1 }, { x: 0, y: 5 }, { x: 6, y: 5 }],
-    objectives: [{ x: 3, y: 3 }, { x: 1, y: 3 }, { x: 5, y: 2 }],
+    weatherBlocked: [],
+    objectives: [{ x: 3, y: 3, value: 1 }, { x: 1, y: 3, value: 1 }, { x: 5, y: 2, value: 1 }],
   },
   {
     id: 'sandbar-crossing',
+    seed: 'SANDBAR-02',
+    difficulty: 2,
     weather: 'Dry wind',
+    weatherRule: 'Dry wind closes the exposed trails marked on this map.',
+    objectiveRule: 'The centre marker is worth 2 points.',
     blocked: [{ x: 0, y: 2 }, { x: 1, y: 2 }, { x: 5, y: 4 }, { x: 6, y: 4 }, { x: 2, y: 5 }, { x: 4, y: 1 }],
-    objectives: [{ x: 3, y: 3 }, { x: 1, y: 4 }, { x: 5, y: 2 }],
+    weatherBlocked: [{ x: 2, y: 5 }],
+    objectives: [{ x: 3, y: 3, value: 2 }, { x: 1, y: 4, value: 1 }, { x: 5, y: 2, value: 1 }],
   },
   {
     id: 'pine-fork',
+    seed: 'PINE-03',
+    difficulty: 3,
     weather: 'Morning mist',
+    weatherRule: 'Mist closes the ridge trails marked on this map.',
+    objectiveRule: 'The outer markers are worth 2 points each.',
     blocked: [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 4, y: 1 }, { x: 5, y: 1 }, { x: 1, y: 5 }, { x: 5, y: 5 }],
-    objectives: [{ x: 3, y: 3 }, { x: 2, y: 4 }, { x: 4, y: 2 }],
+    weatherBlocked: [],
+    objectives: [{ x: 3, y: 3, value: 1 }, { x: 2, y: 4, value: 2 }, { x: 4, y: 2, value: 2 }],
   },
 ];
 
+const protectedCells = new Set([
+  '3-0', '3-1', '3-2', '3-3', '3-4', '3-5', '3-6', '2-3', '1-3',
+  '2-0', '4-0', '2-6', '4-6', '5-2',
+]);
+
+const weatherPatterns = [
+  { weather: 'Clear', weatherRule: 'Clear weather keeps every marked trail open.', weatherBlocked: [] as Coordinate[] },
+  { weather: 'Rain', weatherRule: 'Rain closes two low trails marked with rain lines.', weatherBlocked: [{ x: 2, y: 6 }, { x: 4, y: 0 }] },
+  { weather: 'Morning mist', weatherRule: 'Mist closes two ridge trails marked with mist lines.', weatherBlocked: [{ x: 4, y: 6 }, { x: 2, y: 0 }] },
+  { weather: 'Dry wind', weatherRule: 'Wind closes two exposed trails marked with wind lines.', weatherBlocked: [{ x: 2, y: 6 }, { x: 4, y: 0 }] },
+];
+
+function coordinateKey(cell: Coordinate): string { return `${cell.x}-${cell.y}`; }
+
+function seededRandom(seed: number): () => number {
+  let value = (seed ^ 0x9e3779b9) >>> 0;
+  return () => {
+    value = Math.imul(value ^ (value >>> 16), 0x21f0aaad) >>> 0;
+    value = Math.imul(value ^ (value >>> 15), 0x735a2d97) >>> 0;
+    return ((value ^ (value >>> 15)) >>> 0) / 4_294_967_296;
+  };
+}
+
+export function generatedMap(seedNumber: number): MapDefinition {
+  const seed = Math.max(1, Math.floor(seedNumber));
+  const difficulty = ((seed - 1) % 5) + 1;
+  const weather = weatherPatterns[(seed - 1) % weatherPatterns.length];
+  const random = seededRandom(seed);
+  const blockedKeys = new Set(weather.weatherBlocked.map(coordinateKey));
+  const candidates: Coordinate[] = [];
+  for (let y = 0; y < 7; y += 1) {
+    for (let x = 0; x < 7; x += 1) {
+      const cell = { x, y };
+      if (!protectedCells.has(coordinateKey(cell)) && !blockedKeys.has(coordinateKey(cell))) candidates.push(cell);
+    }
+  }
+  for (let count = 0; count < 3 + difficulty; count += 1) {
+    const index = Math.floor(random() * candidates.length);
+    const [cell] = candidates.splice(index, 1);
+    if (cell) blockedKeys.add(coordinateKey(cell));
+  }
+  const objectiveCandidates = candidates.filter((cell) => !blockedKeys.has(coordinateKey(cell)));
+  const thirdObjective = objectiveCandidates[Math.floor(random() * objectiveCandidates.length)] || { x: 5, y: 2 };
+  const objectiveVariant = (seed - 1) % 3;
+  const objectives: ObjectiveDefinition[] = objectiveVariant === 0
+    ? [{ x: 3, y: 3, value: 1 }, { x: 1, y: 3, value: 1 }, { ...thirdObjective, value: 1 }]
+    : objectiveVariant === 1
+      ? [{ x: 3, y: 3, value: 2 }, { x: 1, y: 3, value: 1 }, { ...thirdObjective, value: 1 }]
+      : [{ x: 3, y: 3, value: 1 }, { x: 1, y: 3, value: 2 }, { ...thirdObjective, value: 2 }];
+  const objectiveRule = objectiveVariant === 0
+    ? 'Each marker is worth 1 point.'
+    : objectiveVariant === 1
+      ? 'The centre marker is worth 2 points.'
+      : 'The outer markers are worth 2 points each.';
+  return {
+    id: `field-map-${seed}`,
+    seed: `RCT-${String(seed).padStart(5, '0')}`,
+    difficulty,
+    weather: weather.weather,
+    weatherRule: weather.weatherRule,
+    objectiveRule,
+    blocked: [...blockedKeys].map((key) => {
+      const [x, y] = key.split('-').map(Number);
+      return { x, y };
+    }),
+    weatherBlocked: weather.weatherBlocked,
+    objectives,
+  };
+}
+
 type RoomRow = {
-  id: string; code: string; map_index: number; round: number; status: string;
+  id: string; code: string; map_index: number; map_seed: number | null; round: number; status: string;
   p1_name: string; p2_name: string | null; p1_x: number; p1_y: number; p2_x: number; p2_y: number;
   p1_score: number; p2_score: number; claims: string; winner: string | null; last_resolution: string | null;
   created_at: number; updated_at: number; expires_at: number;
@@ -54,7 +145,7 @@ export type PublicRoomState = {
   players: { player: PlayerNumber; name: string; position: Coordinate; score: number }[];
   yourPlayer: PlayerNumber;
   yourMoveLocked: boolean;
-  objectives: { x: number; y: number; owner: PlayerNumber | null }[];
+  objectives: { x: number; y: number; value: number; owner: PlayerNumber | null }[];
   lastResolution: string | null;
   winner: 'you' | 'opponent' | 'draw' | null;
 };
@@ -115,6 +206,7 @@ export class GameStore {
         id TEXT PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
         map_index INTEGER NOT NULL,
+        map_seed INTEGER,
         round INTEGER NOT NULL DEFAULT 1,
         status TEXT NOT NULL DEFAULT 'lobby',
         p1_name TEXT NOT NULL,
@@ -155,6 +247,11 @@ export class GameStore {
       CREATE INDEX IF NOT EXISTS rooms_expiry_idx ON rooms(expires_at);
       CREATE INDEX IF NOT EXISTS room_passes_expiry_idx ON room_passes(expires_at);
     `);
+    try {
+      this.db.exec('ALTER TABLE rooms ADD COLUMN map_seed INTEGER');
+    } catch (error) {
+      if (!(error instanceof Error) || !/duplicate column name: map_seed/i.test(error.message)) throw error;
+    }
     this.scheduleCleanup();
   }
 
@@ -243,18 +340,25 @@ export class GameStore {
     return { room, player: payload.p };
   }
 
+  private mapForRoom(room: RoomRow): MapDefinition {
+    // Rooms created before seeded maps keep their original board after this
+    // migration. New rooms persist their seed so a restart never changes a map.
+    return room.map_seed === null ? LEGACY_MAPS[room.map_index % LEGACY_MAPS.length] : generatedMap(room.map_seed);
+  }
+
   createRoom(nameInput: unknown): { state: PublicRoomState; token: string } {
     const name = cleanName(nameInput);
     const now = Date.now();
     this.purgeExpired(now);
     const mapCount = this.db.prepare('SELECT COUNT(*) AS count FROM rooms').get() as { count: number };
+    const mapSeed = mapCount.count + 1;
     let room: RoomRow | undefined;
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const candidate = roomCode();
       try {
-        this.db.prepare(`INSERT INTO rooms (id, code, map_index, p1_name, created_at, updated_at, expires_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(roomId(), candidate, mapCount.count % MAPS.length, name, now, now, now + this.retentionMs);
+        this.db.prepare(`INSERT INTO rooms (id, code, map_index, map_seed, p1_name, created_at, updated_at, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(roomId(), candidate, mapSeed % 5, mapSeed, name, now, now, now + this.retentionMs);
         room = this.findRoom(candidate);
         break;
       } catch (error) {
@@ -327,7 +431,7 @@ export class GameStore {
     if (target.x < 0 || target.x > 6 || target.y < 0 || target.y > 6) throw new GameError(400, 'invalid_move', 'Choose a square on the map.');
     const current = player === 1 ? { x: room.p1_x, y: room.p1_y } : { x: room.p2_x, y: room.p2_y };
     if (Math.abs(target.x - current.x) + Math.abs(target.y - current.y) > 1) throw new GameError(400, 'invalid_move', 'Choose your current square or one adjacent open square.');
-    const map = MAPS[room.map_index];
+    const map = this.mapForRoom(room);
     if (map.blocked.some((cell) => sameCoordinate(cell, target))) throw new GameError(400, 'invalid_move', 'That forest square is blocked. Choose an adjacent open square.');
   }
 
@@ -339,7 +443,7 @@ export class GameStore {
     const conflict = sameCoordinate(targetOne, targetTwo);
     const oneEnd = conflict ? oneStart : targetOne;
     const twoEnd = conflict ? twoStart : targetTwo;
-    const map = MAPS[room.map_index];
+    const map = this.mapForRoom(room);
     const claims = JSON.parse(room.claims) as Record<string, PlayerNumber>;
     let scoreOne = room.p1_score;
     let scoreTwo = room.p2_score;
@@ -347,8 +451,8 @@ export class GameStore {
     map.objectives.forEach((objective, index) => {
       const key = String(index);
       if (claims[key]) return;
-      if (sameCoordinate(oneEnd, objective)) { claims[key] = 1; scoreOne += 1; newlyClaimed.push('north marker'); }
-      if (sameCoordinate(twoEnd, objective)) { claims[key] = 2; scoreTwo += 1; newlyClaimed.push('south marker'); }
+      if (sameCoordinate(oneEnd, objective)) { claims[key] = 1; scoreOne += objective.value; newlyClaimed.push(`north marker (${objective.value} point${objective.value === 1 ? '' : 's'})`); }
+      if (sameCoordinate(twoEnd, objective)) { claims[key] = 2; scoreTwo += objective.value; newlyClaimed.push(`south marker (${objective.value} point${objective.value === 1 ? '' : 's'})`); }
     });
     const finalRound = room.round === 5;
     let winner: string | null = null;
@@ -366,11 +470,11 @@ export class GameStore {
     const currentMove = this.db.prepare('SELECT move_id FROM moves WHERE room_id = ? AND round = ? AND player = ?')
       .get(room.id, room.round, player) as { move_id: string } | undefined;
     const claims = JSON.parse(room.claims) as Record<string, PlayerNumber>;
-    const opponent: PlayerNumber = player === 1 ? 2 : 1;
+    const map = this.mapForRoom(room);
     const winner = room.winner === null ? null : room.winner === 'draw' ? 'draw' : room.winner === `p${player}` ? 'you' : 'opponent';
     return {
       roomCode: room.code,
-      map: MAPS[room.map_index],
+      map,
       round: room.round,
       maxRounds: 5,
       status: room.status as PublicRoomState['status'],
@@ -381,7 +485,7 @@ export class GameStore {
       ],
       yourPlayer: player,
       yourMoveLocked: Boolean(currentMove),
-      objectives: MAPS[room.map_index].objectives.map((objective, index) => ({ ...objective, owner: claims[String(index)] ?? null })),
+      objectives: map.objectives.map((objective, index) => ({ ...objective, owner: claims[String(index)] ?? null })),
       lastResolution: room.last_resolution,
       winner,
     };

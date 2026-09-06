@@ -20,6 +20,8 @@
     "test:claim:opaque-room-pass": "node --import tsx --test --test-name-pattern=@claim:opaque-room-pass service/test/game.test.ts",
     "test:claim:request-limits": "node --import tsx --test --test-name-pattern=@claim:request-limits service/test/game.test.ts",
     "test:claim:room-expiry": "node --import tsx --test --test-name-pattern=@claim:room-expiry service/test/game.test.ts",
+    "test:claim:seeded-map-content": "node --import tsx --test --test-name-pattern=@claim:seeded-map-content service/test/game.test.ts",
+    "test:claim:scoring-draw": "node --import tsx --test --test-name-pattern=@claim:scoring-draw service/test/game.test.ts",
     "test:all": "npm run check && npm run test:service && npm test",
     "verify:live": "node scripts/verify-live.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 4173"

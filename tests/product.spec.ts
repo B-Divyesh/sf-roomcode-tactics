@@ -17,6 +17,16 @@ test('the first screen shows the playable board, job, audience, and first action
   await page.screenshot({ path: testInfo.outputPath('first-screen.png') });
 });
 
+test('a real board visibly explains its generated seed, difficulty, weather, and marker rule', async ({ page }) => {
+  await createRoom(page, 'Mira');
+  const rules = page.locator('.map-rules');
+  await expect(rules.getByText('Map seed')).toBeVisible();
+  await expect(rules.locator('dd').first()).toHaveText(/^RCT-\d{5}$/);
+  await expect(rules.getByText('Difficulty')).toBeVisible();
+  await expect(rules.getByText('Weather')).toBeVisible();
+  await expect(rules.getByText('Marker rule')).toBeVisible();
+});
+
 test('the skip link is the first keyboard action and moves focus to the game', async ({ page }) => {
   await page.goto('/');
   await page.keyboard.press('Tab');

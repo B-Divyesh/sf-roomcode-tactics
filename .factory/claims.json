@@ -35,6 +35,13 @@
     "sandbox": "Enable still resolution effects in /demo, reload, and observe the checked setting."
   },
   {
+    "id": "remappable-controls",
+    "claim": "Board focus keys can be remapped and stay in this browser",
+    "where": "Settings dialog and README controls",
+    "test": "npm test -- --grep @claim:remappable-controls",
+    "sandbox": "In the sample, prove arrow-key focus works, remap Down to S, prove S works and ArrowDown no longer moves focus, then reload and observe S."
+  },
+  {
     "id": "refresh-rejoin",
     "claim": "Reloading reconnects to your saved room",
     "where": "Terms and room flow",
@@ -106,10 +113,31 @@
   },
   {
     "id": "seven-by-seven-map",
-    "claim": "The sample and all three rotating maps use a seven-by-seven board",
+    "claim": "The sample and generated room maps use a seven-by-seven board",
     "where": "Board and README",
     "test": "npm test -- --grep @claim:seven-by-seven-map",
     "sandbox": "Open the sample and create three real rooms, then assert each labelled board has 49 cells in seven columns."
+  },
+  {
+    "id": "seeded-map-content",
+    "claim": "New rooms show a repeatable map seed, difficulty, weather trail rule, and marker value rule",
+    "where": "Real board, README, and design notes",
+    "test": "npm run test:claim:seeded-map-content",
+    "sandbox": "Create two rooms, inspect their public map data, prove distinct seeds and advancing difficulty, reject an adjacent weather-closed trail, then secure a two-point centre marker."
+  },
+  {
+    "id": "scoring-draw",
+    "claim": "Higher score wins after turn five; equal scores draw",
+    "where": "Game instructions and README",
+    "test": "npm run test:claim:scoring-draw",
+    "sandbox": "Two independent players hold position for five turns and observe a completed 0–0 draw."
+  },
+  {
+    "id": "active-session-length",
+    "claim": "A five-turn match reaches its end screen in under 10 minutes of active play",
+    "where": "README opening",
+    "test": "npm test -- --grep @claim:active-session-length",
+    "sandbox": "Two independent browser clients create, join, submit five rounds, and measure time to the winner end screen against a ten-minute limit."
   },
   {
     "id": "durable-room-state",
