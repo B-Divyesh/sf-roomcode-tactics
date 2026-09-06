@@ -6,6 +6,11 @@
 `.factory/review-3.md` are resolved in deployed implementation
 `7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
 
+The implementation revision is `7a37e41a5e865d05b857cae70c85b9e66a3273ab`.
+The later verification-documentation base is
+`497119b70f8c24c63e83b24953b145e9adab4ee9`; it changes reports and the live
+verifier only, not the deployed browser or service implementation.
+
 Roomcode Tactics is a free private five-turn tactics game for two remote
 friends. A player creates a room, shares its link, and both players lock moves
 at their own pace. The first screen shows the job, audience, actions, facts,
