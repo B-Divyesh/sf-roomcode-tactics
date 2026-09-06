@@ -19,6 +19,8 @@ Fresh 1440×900 and 390×844 browser contexts showed the job, audience, both act
 
 The live verifier completed the sample through **You won**, retained the demo label, reloaded the result, reset to turn one, and left a real-data sentinel unchanged. It completed independent two-client win/loss and draw matches, reloaded their end states, checked a visible third-seat recovery error, copied the exact link, forgot only a browser entry, and returned a winner to a fresh room form. It also verified opaque passes, cross-room 403 isolation, 429 with `Retry-After`, unchanged limiting after a rotated forwarding value, health 200, and the designed HTTP 404.
 
+A separate fresh live-demo check remapped and used all four directions on both desktop and phone, then confirmed every binding persisted after reload.
+
 ## Repair made
 
 The independent verifier found incomplete exact claim coverage. Product behavior already worked; this repair makes public claims and outcome tests match.
